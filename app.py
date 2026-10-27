@@ -1,12 +1,13 @@
-import init_db
 import os
 import sqlite3
 from datetime import datetime
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+import init_db
 
 app = Flask(__name__)
+app.secret_key = 'chave_secreta_segura_condominio'  # Necessário para gerenciar sessões e proteção de acesso
 CORS(app)
 
 DATABASE = 'condominio.db'
@@ -44,7 +45,7 @@ def gerar_protocolo_diario(cursor):
 def imagem_upload(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# ROTAS DE PÁGINAS (HTML)
+# ROTAS DAS PÁGINAS (Com Proteção de Acesso)
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -65,15 +66,81 @@ def login_morador_page():
 def pagina_cadastro():
     return render_template('cadastro.html')
 
+# Rota Protegida: Portaria só acessa se estiver logado como Porteiro
 @app.route('/portaria')
 def pagina_portaria():
+    if not session.get('porteiro_logado'):
+        return redirect(url_for('index'))
     return render_template('portaria.html')
 
+# Rota Protegida: Morador só acessa se estiver logado como Morador
 @app.route('/morador')
 def pagina_morador():
+    if not session.get('morador_id'):
+        return redirect(url_for('index'))
     return render_template('morador.html')
 
-# API: Cadastro de Morador
+# Rota de Logout
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+# APIS DE AUTENTICAÇÃO E NAVEGAÇÃO
+@app.route('/api/porteiro/login', methods=['POST'])
+def login_porteiro():
+    dados = request.json
+    cpf = dados.get('cpf', '').strip()
+    senha = dados.get('senha')
+
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+    cursor.execute('SELECT * FROM porteiros WHERE cpf = ? AND senha = ?', (cpf, senha))
+    porteiro = cursor.fetchone()
+    conexao.close()
+
+    if porteiro:
+        session['porteiro_logado'] = True
+        session['porteiro_nome'] = porteiro['nome']
+        return jsonify({"sucesso": True}), 200
+    return jsonify({"erro": "CPF ou Senha de porteiro incorretos!"}), 401
+
+@app.route('/api/morador/login', methods=['POST'])
+def login_morador():
+    dados = request.json
+    cpf = dados.get('cpf', '').strip()
+    senha = dados.get('senha')
+
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+    cursor.execute('SELECT * FROM moradores WHERE cpf = ? AND senha = ?', (cpf, senha))
+    morador = cursor.fetchone()
+
+    if not morador:
+        conexao.close()
+        return jsonify({"erro": "CPF ou Senha incorretos!"}), 401
+
+    morador_dict = dict(morador)
+    session['morador_id'] = morador_dict['id']
+
+    cursor.execute('''
+        SELECT e.*, m.nome as nome_destinatario 
+        FROM encomendas e
+        LEFT JOIN moradores m ON e.morador_id = m.id
+        WHERE e.bloco = ? AND e.apartamento = ?
+        ORDER BY e.id DESC
+    ''', (morador_dict['bloco'], morador_dict['apartamento']))
+    encomendas = [dict(row) for row in cursor.fetchall()]
+
+    conexao.close()
+
+    return jsonify({
+        "sucesso": True,
+        "morador": morador_dict,
+        "encomendas": encomendas
+    }), 200
+
+# APIS DE CADASTRO E GESTÃO
 @app.route('/api/moradores/cadastrar', methods=['POST'])
 def cadastrar_morador():
     dados = request.json
@@ -108,7 +175,6 @@ def cadastrar_morador():
     finally:
         conexao.close()
 
-# API: Cadastro de Porteiro
 @app.route('/api/porteiro/cadastrar', methods=['POST'])
 def cadastrar_porteiro():
     dados = request.json
@@ -120,10 +186,7 @@ def cadastrar_porteiro():
     cursor = conexao.cursor()
 
     try:
-        cursor.execute('''
-            INSERT INTO porteiros (nome, cpf, senha)
-            VALUES (?, ?, ?)
-        ''', (nome, cpf, senha))
+        cursor.execute('INSERT INTO porteiros (nome, cpf, senha) VALUES (?, ?, ?)', (nome, cpf, senha))
         conexao.commit()
         return jsonify({"mensagem": "Porteiro cadastrado com sucesso!"}), 201
     except sqlite3.IntegrityError:
@@ -133,61 +196,6 @@ def cadastrar_porteiro():
     finally:
         conexao.close()
 
-# API: Login de Porteiro
-@app.route('/api/porteiro/login', methods=['POST'])
-def login_porteiro():
-    dados = request.json
-    cpf = dados.get('cpf', '').strip()
-    senha = dados.get('senha')
-
-    conexao = conectar_banco()
-    cursor = conexao.cursor()
-
-    cursor.execute('SELECT * FROM porteiros WHERE cpf = ? AND senha = ?', (cpf, senha))
-    porteiro = cursor.fetchone()
-    conexao.close()
-
-    if porteiro:
-        return jsonify({"sucesso": True, "nome": porteiro['nome']}), 200
-    return jsonify({"erro": "CPF ou Senha de porteiro incorretos!"}), 401
-
-# API: Login de Morador
-@app.route('/api/morador/login', methods=['POST'])
-def login_morador():
-    dados = request.json
-    cpf = dados.get('cpf', '').strip()
-    senha = dados.get('senha')
-
-    conexao = conectar_banco()
-    cursor = conexao.cursor()
-
-    cursor.execute('SELECT * FROM moradores WHERE cpf = ? AND senha = ?', (cpf, senha))
-    morador = cursor.fetchone()
-
-    if not morador:
-        conexao.close()
-        return jsonify({"erro": "CPF ou Senha incorretos!"}), 401
-
-    morador_dict = dict(morador)
-
-    cursor.execute('''
-        SELECT e.*, m.nome as nome_destinatario 
-        FROM encomendas e
-        LEFT JOIN moradores m ON e.morador_id = m.id
-        WHERE e.bloco = ? AND e.apartamento = ?
-        ORDER BY e.id DESC
-    ''', (morador_dict['bloco'], morador_dict['apartamento']))
-    encomendas = [dict(row) for row in cursor.fetchall()]
-
-    conexao.close()
-
-    return jsonify({
-        "sucesso": True,
-        "morador": morador_dict,
-        "encomendas": encomendas
-    }), 200
-
-# API: Buscar moradores por Bloco/Apartamento
 @app.route('/api/moradores/buscar/<int:bloco>/<int:apartamento>', methods=['GET'])
 def buscar_moradores_unidade(bloco, apartamento):
     conexao = conectar_banco()
@@ -197,7 +205,6 @@ def buscar_moradores_unidade(bloco, apartamento):
     conexao.close()
     return jsonify(moradores), 200
 
-# API: Registrar Encomenda
 @app.route('/api/encomendas', methods=['POST'])
 def registrar_encomenda():
     bloco = request.form.get('bloco')
@@ -244,7 +251,6 @@ def registrar_encomenda():
     finally:
         conexao.close()
 
-# API: Buscar Encomendas na Portaria
 @app.route('/api/encomendas/busca', methods=['GET'])
 def buscar_encomendas_portaria():
     termo = request.args.get('q', '').strip()
@@ -277,7 +283,6 @@ def buscar_encomendas_portaria():
 
     return jsonify(encomendas), 200
 
-# API: Dar Baixa em Encomenda
 @app.route('/api/encomendas/<int:id_encomenda>/retirar', methods=['PUT'])
 def dar_baixa_encomenda(id_encomenda):
     dados = request.json
@@ -299,6 +304,5 @@ def dar_baixa_encomenda(id_encomenda):
     return jsonify({"mensagem": "Entrega confirmada com sucesso!"}), 200
 
 if __name__ == '__main__':
-    # Inicializa/cria o banco de dados e suas tabelas automaticamente ao iniciar o servidor
     init_db.criar_banco()
     app.run(debug=True, host='0.0.0.0', port=5000)

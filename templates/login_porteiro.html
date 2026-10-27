@@ -7,15 +7,17 @@
         body { font-family: Arial, sans-serif; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: white; padding: 25px; border-radius: 10px; width: 100%; max-width: 350px; text-align: center; }
         input, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #333; color: white; font-weight: bold; border: none; cursor: pointer; }
+        button.btn-login { background: #333; color: white; font-weight: bold; border: none; cursor: pointer; }
+        .btn-voltar { background: #6c757d; color: white; font-weight: bold; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
 <div class="card">
+    <button class="btn-voltar" onclick="location.href='/'">🏠 Voltar ao Início</button>
     <h2>🛡️ Login da Portaria</h2>
     <input type="text" id="cpf" placeholder="Digite seu CPF">
     <input type="password" id="senha" placeholder="Sua Senha">
-    <button onclick="loginPorteiro()">Entrar na Portaria</button>
+    <button class="btn-login" onclick="loginPorteiro()">Entrar na Portaria</button>
     <p style="text-align: center;"><a href="/cadastro-porteiro">Cadastrar Porteiro</a></p>
 </div>
 
