@@ -1,3 +1,4 @@
+import init_db
 import os
 import sqlite3
 from datetime import datetime
@@ -298,4 +299,6 @@ def dar_baixa_encomenda(id_encomenda):
     return jsonify({"mensagem": "Entrega confirmada com sucesso!"}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Inicializa/cria o banco de dados e suas tabelas automaticamente ao iniciar o servidor
+    init_db.criar_banco()
+    app.run(debug=True, host='0.0.0.0', port=5000)
