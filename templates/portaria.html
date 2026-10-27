@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Portaria - Registrar Encomenda</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 600px; margin-bottom: 20px; }
+        label { font-weight: bold; margin-top: 10px; display: block; }
+        input, select, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #28a745; color: white; font-weight: bold; border: none; margin-top: 15px; cursor: pointer; }
+        .item { border: 1px solid #ddd; padding: 12px; margin-top: 10px; border-radius: 8px; }
+        .img-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 6px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>📦 Nova Encomenda (Portaria)</h2>
+    <form id="formEnc" onsubmit="salvar(event)">
+        <div style="display:flex; gap:10px;">
+            <div>
+                <label>Bloco:</label>
+                <input type="number" id="bloco" required placeholder="Ex: 1" onchange="carregarMoradores()">
+            </div>
+            <div>
+                <label>Apartamento:</label>
+                <input type="number" id="apartamento" required placeholder="Ex: 101" onchange="carregarMoradores()">
+            </div>
+        </div>
+
+        <label>Morador Destinatário:</label>
+        <select id="morador_id" required>
+            <option value="">Informe o Bloco e Apto acima...</option>
+        </select>
+
+        <label>Tipo de Encomenda:</label>
+        <select id="tipo">
+            <option value="Pacote/Caixa">Pacote / Caixa</option>
+            <option value="Carta/Envelope">Carta / Envelope</option>
+            <option value="iFood/Delivery">Delivery / Comida</option>
+        </select>
+
+        <label>Foto:</label>
+        <input type="file" id="foto" accept="image/*" required>
+
+        <button type="submit">Salvar e Notificar no WhatsApp</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>🔍 Buscar Encomendas</h2>
+    <input type="text" id="q" placeholder="Nome, Bloco, Apto ou Protocolo..." onkeyup="pesquisar()">
+    <div id="resultados"></div>
+</div>
+
+<script>
+async function carregarMoradores() {
+    const b = document.getElementById('bloco').value;
+    const a = document.getElementById('apartamento').value;
+    const selectM = document.getElementById('morador_id');
+
+    if (!b || !a) return;
+
+    const res = await fetch(`/api/moradores/buscar/${b}/${a}`);
+    const lista = await res.json();
+
+    selectM.innerHTML = '';
+    if (lista.length === 0) {
+        selectM.innerHTML = '<option value="">⚠️ Nenhum morador cadastrado nesta unidade!</option>';
+    } else {
+        selectM.innerHTML = '<option value="">Selecione o Morador...</option>';
+        lista.forEach(m => {
+            selectM.innerHTML += `<option value="${m.id}">${m.nome}</option>`;
+        });
+    }
+}
+
+async function salvar(e) {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('bloco', document.getElementById('bloco').value);
+    formData.append('apartamento', document.getElementById('apartamento').value);
+    formData.append('morador_id', document.getElementById('morador_id').value);
+    formData.append('tipo_encomenda', document.getElementById('tipo').value);
+    formData.append('foto', document.getElementById('foto').files[0]);
+
+    const res = await fetch('/api/encomendas', { method: 'POST', body: formData });
+    const json = await res.json();
+    alert(json.mensagem);
+
+    if (json.celular_morador) {
+        let num = json.celular_morador.replace(/\D/g, '');
+        if (!num.startsWith('55')) num = '55' + num;
+        const txt = encodeURIComponent(`📦 *Aviso de Encomenda*\nOlá, *${json.nome_morador}*!\nChegou uma encomenda para você (#${json.protocolo}). Pode vir retirar na portaria!`);
+        window.open(`https://web.whatsapp.com/send?phone=${num}&text=${txt}`, '_blank');
+    }
+
+    document.getElementById('formEnc').reset();
+    pesquisar();
+}
+
+async function pesquisar() {
+    const q = document.getElementById('q').value;
+    const res = await fetch(`/api/encomendas/busca?q=${q}`);
+    const dados = await res.json();
+    const div = document.getElementById('resultados');
+    div.innerHTML = '';
+
+    dados.forEach(e => {
+        div.innerHTML += `
+            <div class="item">
+                <b>#${e.protocolo_diario}</b> - ${e.status}<br>
+                <b>Destinatário:</b> ${e.nome_morador || 'Não selecionado'}<br>
+                <b>Bloco:</b> ${e.bloco} | <b>Apto:</b> ${e.apartamento}<br>
+                ${e.foto_url ? `<img src="${e.foto_url}" class="img-preview">` : ''}
+                ${e.status === 'Pendente' ? `<button onclick="darBaixa(${e.id})">Dar Baixa/Entregar</button>` : ''}
+            </div>
+        `;
+    });
+}
+
+async function darBaixa(id) {
+    const quem = prompt("Quem retirou?", "Próprio Morador");
+    if (quem) {
+        await fetch(`/api/encomendas/${id}/retirar`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ retirado_por: quem })
+        });
+        pesquisar();
+    }
+}
+pesquisar();
+</script>
+</body>
+</html>

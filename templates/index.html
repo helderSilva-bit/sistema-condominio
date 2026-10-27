@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema de Portaria & Encomendas</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; max-width: 400px; width: 100%; }
+        button { width: 100%; padding: 14px; margin-top: 12px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .btn-porteiro { background: #333; color: white; }
+        .btn-morador { background: #007bff; color: white; }
+        .btn-cad-m { background: #28a745; color: white; }
+        .btn-cad-p { background: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h2>🏢 Portaria & Encomendas</h2>
+    <p>Selecione uma opção:</p>
+    <button class="btn-porteiro" onclick="location.href='/login-porteiro'">Login Porteiro</button>
+    <button class="btn-morador" onclick="location.href='/login-morador'">Login Morador</button>
+    <hr style="margin-top: 20px;">
+    <button class="btn-cad-m" onclick="location.href='/cadastro'">Cadastrar Morador</button>
+    <button class="btn-cad-p" onclick="location.href='/cadastro-porteiro'">Cadastrar Porteiro</button>
+</div>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Cadastro de Porteiro</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6f9; padding: 20px; display: flex; justify-content: center; }
+        .container { background: white; padding: 25px; border-radius: 8px; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        input, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { background: #333; color: white; font-weight: bold; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🛡️ Cadastrar Porteiro</h2>
+    <form onsubmit="cadastrarPorteiro(event)">
+        <input type="text" id="nome" placeholder="Nome Completo" required>
+        <input type="text" id="cpf" placeholder="CPF" required>
+        <input type="password" id="senha" placeholder="Crie sua Senha" required>
+        <button type="submit">Cadastrar Porteiro</button>
+    </form>
+</div>
+
+<script>
+async function cadastrarPorteiro(e) {
+    e.preventDefault();
+    const dados = {
+        nome: document.getElementById('nome').value,
+        cpf: document.getElementById('cpf').value,
+        senha: document.getElementById('senha').value
+    };
+
+    const res = await fetch('/api/porteiro/cadastrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados)
+    });
+    const json = await res.json();
+
+    if (res.ok) {
+        alert(json.mensagem);
+        window.location.href = '/login-porteiro';
+    } else {
+        alert("⚠️ " + json.erro);
+    }
+}
+</script>
+</body>
+</html>
