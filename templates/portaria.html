@@ -90,10 +90,24 @@ async function salvar(e) {
     alert(json.mensagem);
 
     if (json.celular_morador) {
+        // Limpa o número de telefone mantendo apenas os dígitos
         let num = json.celular_morador.replace(/\D/g, '');
         if (!num.startsWith('55')) num = '55' + num;
-        const txt = encodeURIComponent(`📦 *Aviso de Encomenda*\nOlá, *${json.nome_morador}*!\nChegou uma encomenda para você (#${json.protocolo}). Pode vir retirar na portaria!`);
-        window.open(`https://web.whatsapp.com/send?phone=${num}&text=${txt}`, '_blank');
+
+        // Texto formatado para a notificação
+        const txt = encodeURIComponent(
+            `📦 *Aviso de Encomenda - Portaria*\n\n` +
+            `Olá, *${json.nome_morador}*!\n` +
+            `Chegou uma encomenda para você.\n\n` +
+            `• *Protocolo:* #${json.protocolo}\n` +
+            `• *Tipo:* ${document.getElementById('tipo').value}\n\n` +
+            `Pode vir retirar na portaria!`
+        );
+
+        // A API 'api.whatsapp.com' redireciona para a App no telemóvel ou para a Web no PC
+        const urlWhatsapp = `https://api.whatsapp.com/send?phone=${num}&text=${txt}`;
+
+        window.open(urlWhatsapp, '_blank');
     }
 
     document.getElementById('formEnc').reset();
