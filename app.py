@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session
@@ -30,6 +31,48 @@ def conectar_banco():
 
 def arquivo_permitido(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def apenas_numeros(valor):
+    return re.sub(r'\D', '', str(valor or ''))
+
+# VALIDAÇÃO MATEMÁTICA DE CPF
+def validar_cpf(cpf):
+    cpf = apenas_numeros(cpf)
+    if len(cpf) != 11 or cpf == cpf[0] * 11:
+        return False
+    for i in range(9, 11):
+        soma = sum(int(cpf[num]) * ((i + 1) - num) for num in range(0, i))
+        digito = (soma * 10 % 11) % 10
+        if int(cpf[i]) != digito:
+            return False
+    return True
+
+# VALIDAÇÃO MATEMÁTICA DE CNPJ
+def validar_cnpj(cnpj):
+    cnpj = apenas_numeros(cnpj)
+    if len(cnpj) != 14 or cnpj == cnpj[0] * 14:
+        return False
+    tamanho = 12
+    numeros = cnpj[:tamanho]
+    digitos = cnpj[tamanho:]
+    
+    def calc_digito(pos, tam):
+        soma = 0
+        p = pos
+        for num in numeros:
+            soma += int(num) * p
+            p -= 1
+            if p < 2:
+                p = 9
+        d = 11 - (soma % 11)
+        return 0 if d > 9 else d
+
+    d1 = calc_digito(5, 12)
+    if int(digitos[0]) != d1:
+        return False
+    numeros += str(d1)
+    d2 = calc_digito(6, 13)
+    return int(digitos[1]) == d2
 
 def gerar_protocolo_anual(cursor):
     ano_atual = datetime.now().strftime("%Y")
@@ -63,7 +106,7 @@ def aplicar_headers_seguranca(response):
 def imagem_upload(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# PÁGINAS DO SISTEMA
+# ROTAS DAS PÁGINAS
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -152,7 +195,7 @@ def login_porteiro():
     if porteiro['data_expiracao']:
         data_exp = datetime.strptime(porteiro['data_expiracao'], "%Y-%m-%d")
         if datetime.now() > data_exp:
-            return jsonify({"erro": f"O acesso do {porteiro['nome_condominio']} está expirado! Contacte o Administrador."}), 403
+            return jsonify({"erro": f"O acesso do condomínio '{porteiro['nome_condominio']}' está expirado!"}), 403
 
     session.clear()
     session['porteiro_logado'] = True
@@ -165,12 +208,12 @@ def login_porteiro():
 @app.route('/api/morador/login', methods=['POST'])
 def login_morador():
     dados = request.json or {}
-    cpf = str(dados.get('cpf', '')).strip()
+    cpf = apenas_numeros(dados.get('cpf', ''))
     senha = str(dados.get('senha', '')).strip()
 
     conexao = conectar_banco()
     cursor = conexao.cursor()
-    cursor.execute('SELECT * FROM moradores WHERE TRIM(cpf) = ? AND TRIM(senha) = ?', (cpf, senha))
+    cursor.execute('SELECT * FROM moradores WHERE REPLACE(REPLACE(REPLACE(cpf, ".", ""), "-", ""), " ", "") = ? AND TRIM(senha) = ?', (cpf, senha))
     morador = cursor.fetchone()
 
     if not morador:
@@ -184,10 +227,11 @@ def login_morador():
 
     return jsonify({"sucesso": True, "morador": morador_dict}), 200
 
-# APIS DE GERENCIAMENTO DE CLIENTES (CONDOMÍNIOS) E LIBERAÇÃO DE PRAZOS
+# GESTÃO DE CONDOMÍNIOS (CLIENTES)
 @app.route('/api/admin/condominios', methods=['GET', 'POST'])
 def gerenciar_condominios_admin():
-    if not session.get('admin_logado'): return jsonify({"erro": "Negado"}), 403
+    if not session.get('admin_logado'): 
+        return jsonify({"erro": "Negado"}), 403
     conexao = conectar_banco()
     cursor = conexao.cursor()
 
@@ -208,9 +252,20 @@ def gerenciar_condominios_admin():
 
     if request.method == 'POST':
         dados = request.json or {}
-        nome = dados.get('nome')
-        cnpj_cpf = str(dados.get('cnpj_cpf', '')).strip()
+        nome = dados.get('nome', '').strip()
+        doc = apenas_numeros(dados.get('cnpj_cpf', ''))
         dias = int(dados.get('dias', 30))
+
+        if not nome:
+            conexao.close()
+            return jsonify({"erro": "Informe o nome do condomínio!"}), 400
+
+        if len(doc) == 11 and not validar_cpf(doc):
+            conexao.close()
+            return jsonify({"erro": "CPF do responsável/cliente é inválido!"}), 400
+        elif len(doc) == 14 and not validar_cnpj(doc):
+            conexao.close()
+            return jsonify({"erro": "CNPJ do condomínio é inválido!"}), 400
 
         nova_expiracao = (datetime.now() + timedelta(days=dias)).strftime("%Y-%m-%d")
 
@@ -218,11 +273,11 @@ def gerenciar_condominios_admin():
             cursor.execute('''
                 INSERT INTO condominios (nome, cnpj_cpf, data_expiracao, status)
                 VALUES (?, ?, ?, 'Ativo')
-            ''', (nome, cnpj_cpf, nova_expiracao))
+            ''', (nome, doc, nova_expiracao))
             conexao.commit()
-            return jsonify({"mensagem": f"Cliente '{nome}' cadastrado com acesso por {dias} dias!"}), 201
+            return jsonify({"mensagem": f"Condomínio '{nome}' cadastrado com sucesso!"}), 201
         except sqlite3.IntegrityError:
-            return jsonify({"erro": "CNPJ/CPF já cadastrado!"}), 400
+            return jsonify({"erro": "CNPJ/CPF já está cadastrado em outro condomínio!"}), 400
         finally:
             conexao.close()
 
@@ -249,9 +304,81 @@ def renovar_prazo_cliente(id):
     conexao.commit()
     conexao.close()
 
-    return jsonify({"mensagem": f"Prazo liberado até {datetime.strptime(nova_expiracao, '%Y-%m-%d').strftime('%d/%m/%Y')}!"}), 200
+    return jsonify({"mensagem": f"Prazo estendido até {datetime.strptime(nova_expiracao, '%Y-%m-%d').strftime('%d/%m/%Y')}!"}), 200
 
-# OPERAÇÕES DO ADMIN PARA PORTEIROS, MORADORES E ENCOMENDAS
+# CADASTRO DE PORTEIRO (CORRIGIDO)
+@app.route('/api/porteiro/cadastrar', methods=['POST'])
+def cadastrar_porteiro():
+    if not session.get('admin_logado'): 
+        return jsonify({"erro": "Apenas o Administrador pode cadastrar porteiros!"}), 403
+
+    dados = request.json or {}
+    nome = dados.get('nome', '').strip()
+    matricula = str(dados.get('matricula', '')).strip()
+    senha = str(dados.get('senha', '')).strip()
+    condominio_id = dados.get('condominio_id')
+
+    if not nome or not matricula or not senha:
+        return jsonify({"erro": "Preencha todos os campos do porteiro!"}), 400
+
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+
+    try:
+        if not condominio_id:
+            cursor.execute('SELECT id FROM condominios ORDER BY id ASC LIMIT 1')
+            c = cursor.fetchone()
+            condominio_id = c['id'] if c else 1
+
+        cursor.execute('''
+            INSERT INTO porteiros (condominio_id, nome, matricula, senha)
+            VALUES (?, ?, ?, ?)
+        ''', (condominio_id, nome, matricula, senha))
+        conexao.commit()
+        return jsonify({"mensagem": "Porteiro cadastrado com sucesso!"}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"erro": "Matrícula de porteiro já cadastrada no sistema!"}), 400
+    except Exception as e:
+        return jsonify({"erro": f"Erro interno ao salvar: {str(e)}"}), 400
+    finally:
+        conexao.close()
+
+# CADASTRO DE MORADOR COM VALIDAÇÃO DE CPF E LIMITE DE 4 POR APTO
+@app.route('/api/moradores/cadastrar', methods=['POST'])
+def cadastrar_morador():
+    dados = request.json or {}
+    nome = dados.get('nome', '').strip()
+    celular = dados.get('celular', '').strip()
+    cpf_limpo = apenas_numeros(dados.get('cpf', ''))
+    senha = dados.get('senha')
+    bloco = int(dados.get('bloco'))
+    apartamento = int(dados.get('apartamento'))
+
+    if not validar_cpf(cpf_limpo):
+        return jsonify({"erro": "CPF digitado é inválido!"}), 400
+
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+    try:
+        cursor.execute('SELECT COUNT(*) as total FROM moradores WHERE bloco = ? AND apartamento = ?', (bloco, apartamento))
+        if cursor.fetchone()['total'] >= 4:
+            return jsonify({"erro": "Limite atingido! Este apartamento já possui 4 moradores cadastrados."}), 400
+
+        cursor.execute('SELECT id FROM condominios ORDER BY id ASC LIMIT 1')
+        c = cursor.fetchone()
+        condominio_id = c['id'] if c else 1
+
+        cursor.execute('''
+            INSERT INTO moradores (condominio_id, nome, celular, cpf, senha, bloco, apartamento)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (condominio_id, nome, celular, cpf_limpo, senha, bloco, apartamento))
+        conexao.commit()
+        return jsonify({"mensagem": "Morador cadastrado com sucesso!"}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"erro": "CPF já cadastrado no sistema!"}), 400
+    finally:
+        conexao.close()
+
 @app.route('/api/admin/porteiros', methods=['GET'])
 def listar_porteiros_admin():
     if not session.get('admin_logado'): return jsonify({"erro": "Negado"}), 403
@@ -302,68 +429,10 @@ def gerenciar_morador_admin(id):
     if request.method == 'PUT':
         dados = request.json or {}
         cursor.execute('UPDATE moradores SET nome=?, celular=?, cpf=?, bloco=?, apartamento=? WHERE id=?',
-                       (dados.get('nome'), dados.get('celular'), dados.get('cpf'), dados.get('bloco'), dados.get('apartamento'), id))
+                       (dados.get('nome'), dados.get('celular'), apenas_numeros(dados.get('cpf')), dados.get('bloco'), dados.get('apartamento'), id))
         conexao.commit()
         conexao.close()
         return jsonify({"mensagem": "Morador atualizado!"}), 200
-
-@app.route('/api/admin/encomendas/<int:id>', methods=['DELETE', 'PUT'])
-def gerenciar_encomenda_admin(id):
-    if not session.get('admin_logado'): return jsonify({"erro": "Negado"}), 403
-    conexao = conectar_banco()
-    cursor = conexao.cursor()
-    if request.method == 'DELETE':
-        cursor.execute('DELETE FROM encomendas WHERE id = ?', (id,))
-        conexao.commit()
-        conexao.close()
-        return jsonify({"mensagem": "Encomenda excluída!"}), 200
-    if request.method == 'PUT':
-        dados = request.json or {}
-        cursor.execute('UPDATE encomendas SET empresa_entrega=?, status=? WHERE id=?', (dados.get('empresa_entrega'), dados.get('status'), id))
-        conexao.commit()
-        conexao.close()
-        return jsonify({"mensagem": "Encomenda atualizada!"}), 200
-
-@app.route('/api/porteiro/cadastrar', methods=['POST'])
-def cadastrar_porteiro():
-    if not session.get('admin_logado'): return jsonify({"erro": "Apenas Admin!"}), 403
-    dados = request.json or {}
-    conexao = conectar_banco()
-    cursor = conexao.cursor()
-    try:
-        cursor.execute('SELECT id FROM condominios ORDER BY id ASC LIMIT 1')
-        cond = cursor.fetchone()
-        cond_id = cond['id'] if cond else 1
-
-        cursor.execute('INSERT INTO porteiros (condominio_id, nome, matricula, senha) VALUES (?, ?, ?, ?)', 
-                       (cond_id, dados.get('nome'), str(dados.get('matricula', '')).strip(), str(dados.get('senha', '')).strip()))
-        conexao.commit()
-        return jsonify({"mensagem": "Porteiro cadastrado com sucesso!"}), 201
-    except sqlite3.IntegrityError:
-        return jsonify({"erro": "Matrícula já cadastrada!"}), 400
-    finally:
-        conexao.close()
-
-@app.route('/api/moradores/cadastrar', methods=['POST'])
-def cadastrar_morador():
-    dados = request.json or {}
-    bloco = int(dados.get('bloco'))
-    apartamento = int(dados.get('apartamento'))
-    conexao = conectar_banco()
-    cursor = conexao.cursor()
-    try:
-        cursor.execute('SELECT COUNT(*) as total FROM moradores WHERE bloco = ? AND apartamento = ?', (bloco, apartamento))
-        if cursor.fetchone()['total'] >= 4:
-            return jsonify({"erro": "Limite de 4 moradores atingido!"}), 400
-
-        cursor.execute('INSERT INTO moradores (nome, celular, cpf, senha, bloco, apartamento) VALUES (?, ?, ?, ?, ?, ?)',
-                       (dados.get('nome'), dados.get('celular'), str(dados.get('cpf', '')).strip(), dados.get('senha'), bloco, apartamento))
-        conexao.commit()
-        return jsonify({"mensagem": "Morador cadastrado!"}), 201
-    except sqlite3.IntegrityError:
-        return jsonify({"erro": "CPF já cadastrado!"}), 400
-    finally:
-        conexao.close()
 
 @app.route('/api/moradores/buscar/<int:bloco>/<int:apartamento>', methods=['GET'])
 def buscar_moradores_unidade(bloco, apartamento):
@@ -376,13 +445,16 @@ def buscar_moradores_unidade(bloco, apartamento):
 
 @app.route('/api/encomendas', methods=['POST'])
 def registrar_encomenda():
-    if not session.get('porteiro_logado') and not session.get('admin_logado'): return jsonify({"erro": "Sessão expirada!"}), 401
+    if not session.get('porteiro_logado') and not session.get('admin_logado'): 
+        return jsonify({"erro": "Sessão expirada!"}), 401
+
     bloco = request.form.get('bloco')
     apartamento = request.form.get('apartamento')
     morador_id = request.form.get('morador_id')
     tipo = request.form.get('tipo_encomenda')
     empresa = request.form.get('empresa_entrega', 'Outros')
     porteiro_nome = session.get('porteiro_nome', 'Administração')
+    condominio_id = session.get('condominio_id', 1)
     data_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
 
     foto_caminho = None
@@ -398,9 +470,9 @@ def registrar_encomenda():
     try:
         protocolo = gerar_protocolo_anual(cursor)
         cursor.execute('''
-            INSERT INTO encomendas (protocolo_anual, bloco, apartamento, morador_id, tipo_encomenda, empresa_entrega, porteiro_nome, foto_url, data_recebimento)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (protocolo, bloco, apartamento, morador_id, tipo, empresa, porteiro_nome, foto_caminho, data_atual))
+            INSERT INTO encomendas (condominio_id, protocolo_anual, bloco, apartamento, morador_id, tipo_encomenda, empresa_entrega, porteiro_nome, foto_url, data_recebimento)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (condominio_id, protocolo, bloco, apartamento, morador_id, tipo, empresa, porteiro_nome, foto_caminho, data_atual))
         conexao.commit()
 
         cursor.execute('SELECT nome, celular FROM moradores WHERE id = ?', (morador_id,))
@@ -457,7 +529,7 @@ def dar_baixa_encomenda(id_encomenda):
 @app.route('/reconstruir-banco-agora-99')
 def reconstruir_banco_agora():
     init_db.criar_banco()
-    return "<h1>✅ Banco atualizado com suporte a Clientes/Condomínios!</h1>"
+    return "<h1>✅ Base de dados limpa e atualizada com validação de CPF e CNPJ!</h1>"
 
 if __name__ == '__main__':
     init_db.criar_banco()

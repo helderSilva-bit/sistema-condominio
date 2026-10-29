@@ -46,7 +46,7 @@
     <button class="btn-add" onclick="location.href='/cadastro-porteiro'">+ Cadastrar Novo Porteiro</button>
     <table>
         <thead>
-            <tr><th>ID</th><th>Nome</th><th>Matrícula</th><th>Ações</th></tr>
+            <tr><th>ID</th><th>Nome</th><th>Matrícula</th><th>Condomínio</th><th>Ações</th></tr>
         </thead>
         <tbody id="tb-porteiros"></tbody>
     </table>
@@ -73,6 +73,16 @@
 </div>
 
 <script>
+// Máscara auxiliar de CPF/CNPJ
+function mascararDoc(v) {
+    v = v.replace(/\D/g, "");
+    if (v.length <= 11) {
+        return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    } else {
+        return v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+    }
+}
+
 async function carregarTudo() {
     // 1. Carregar Clientes / Condomínios
     try {
@@ -83,7 +93,7 @@ async function carregarTudo() {
             tb.innerHTML = Array.isArray(clientes) && clientes.length > 0 ? clientes.map(c => `
                 <tr>
                     <td>${c.id}</td>
-                    <td><b>${c.nome}</b><br><small>CPF/CNPJ: ${c.cnpj_cpf || 'N/I'}</small></td>
+                    <td><b>${c.nome}</b><br><small>CPF/CNPJ: ${c.cnpj_cpf ? mascararDoc(c.cnpj_cpf) : 'N/I'}</small></td>
                     <td>${c.data_expiracao_br}</td>
                     <td><b>${c.dias_restantes} dias</b></td>
                     <td>${c.ativo ? '<span style="color:green;font-weight:bold;">✅ Ativo</span>' : '<span style="color:red;font-weight:bold;">❌ Expirado</span>'}</td>
@@ -106,13 +116,13 @@ async function carregarTudo() {
             const tb = document.getElementById('tb-porteiros');
             tb.innerHTML = Array.isArray(porteiros) && porteiros.length > 0 ? porteiros.map(p => `
                 <tr>
-                    <td>${p.id}</td><td>${p.nome}</td><td>${p.matricula}</td>
+                    <td>${p.id}</td><td>${p.nome}</td><td>${p.matricula}</td><td>${p.condominio_nome || 'Geral'}</td>
                     <td>
                         <button class="btn-edit" onclick="editarPorteiro(${p.id}, '${p.nome}', '${p.matricula}')">Editar</button>
                         <button class="btn-del" onclick="delPorteiro(${p.id})">Excluir</button>
                     </td>
                 </tr>
-            `).join('') : '<tr><td colspan="4" style="text-align:center;">Nenhum porteiro cadastrado</td></tr>';
+            `).join('') : '<tr><td colspan="5" style="text-align:center;">Nenhum porteiro cadastrado</td></tr>';
         }
     } catch(e) { console.error("Erro porteiros:", e); }
 
@@ -124,7 +134,7 @@ async function carregarTudo() {
             const tb = document.getElementById('tb-moradores');
             tb.innerHTML = Array.isArray(moradores) && moradores.length > 0 ? moradores.map(m => `
                 <tr>
-                    <td>${m.id}</td><td>${m.nome}</td><td>${m.celular}</td><td>${m.cpf}</td><td>Bl ${m.bloco} - Ap ${m.apartamento}</td>
+                    <td>${m.id}</td><td>${m.nome}</td><td>${m.celular}</td><td>${mascararDoc(m.cpf)}</td><td>Bl ${m.bloco} - Ap ${m.apartamento}</td>
                     <td>
                         <button class="btn-edit" onclick="editarMorador(${m.id}, '${m.nome}', '${m.celular}', '${m.cpf}', ${m.bloco}, ${m.apartamento})">Editar</button>
                         <button class="btn-del" onclick="delMorador(${m.id})">Excluir</button>
@@ -156,7 +166,7 @@ async function carregarTudo() {
 async function cadastrarNovoCliente() {
     const nome = prompt("Nome do Condomínio / Cliente:");
     if (!nome) return;
-    const cnpj_cpf = prompt("CNPJ ou CPF do Cliente:");
+    const cnpj_cpf = prompt("CNPJ ou CPF do Cliente (digite apenas números):");
     const dias = prompt("Dias iniciais de acesso (ex: 30, 90, 365):", "30");
 
     if (nome && dias) {
@@ -166,13 +176,17 @@ async function cadastrarNovoCliente() {
             body: JSON.stringify({ nome, cnpj_cpf, dias: parseInt(dias) })
         });
         const json = await res.json();
-        alert(json.mensagem || json.erro);
-        carregarTudo();
+        if (res.ok) {
+            alert("✅ " + json.mensagem);
+            carregarTudo();
+        } else {
+            alert("⚠️ " + json.erro);
+        }
     }
 }
 
 async function liberarPrazo(id, dias) {
-    if (confirm(`Confirma a liberação de mais ${dias} dias de acesso para este cliente?`)) {
+    if (confirm(`Confirma a liberação de mais ${dias} dias para este cliente?`)) {
         const res = await fetch(`/api/admin/condominios/${id}/renovar`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -185,7 +199,7 @@ async function liberarPrazo(id, dias) {
 }
 
 async function liberarPrazoCustom(id) {
-    const dias = prompt("Digite a quantidade exata de dias para liberar ao cliente (ex: 15, 45, 90, 500):");
+    const dias = prompt("Digite a quantidade exata de dias para liberar:");
     if (dias && !isNaN(dias)) {
         liberarPrazo(id, parseInt(dias));
     }
