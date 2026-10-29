@@ -1,13 +1,15 @@
 import sqlite3
+from datetime import datetime, timedelta
 
 def criar_banco():
     conexao = sqlite3.connect('condominio.db')
     cursor = conexao.cursor()
 
-    # Recria as tabelas do zero para garantir a presença das novas colunas
+    # Elimina tabelas antigas para garantir a nova estrutura
     cursor.execute('DROP TABLE IF EXISTS encomendas')
     cursor.execute('DROP TABLE IF EXISTS moradores')
     cursor.execute('DROP TABLE IF EXISTS porteiros')
+    cursor.execute('DROP TABLE IF EXISTS assinatura')
 
     # Tabela de Moradores
     cursor.execute('''
@@ -22,7 +24,7 @@ def criar_banco():
         )
     ''')
 
-    # Tabela de Porteiros (Utiliza MATRICULA em vez de CPF)
+    # Tabela de Porteiros (Usa MATRICULA em vez de CPF)
     cursor.execute('''
         CREATE TABLE porteiros (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +55,19 @@ def criar_banco():
             FOREIGN KEY (porteiro_id) REFERENCES porteiros(id)
         )
     ''')
+
+    # Tabela de Assinatura do Condomínio
+    cursor.execute('''
+        CREATE TABLE assinatura (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_expiracao TEXT NOT NULL,
+            status TEXT DEFAULT 'Ativo'
+        )
+    ''')
+
+    # Insere uma assinatura inicial padrão de 30 dias de teste
+    data_inicial = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+    cursor.execute('INSERT INTO assinatura (data_expiracao, status) VALUES (?, ?)', (data_inicial, 'Ativo'))
 
     conexao.commit()
     conexao.close()

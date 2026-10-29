@@ -2,17 +2,24 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Painel da Portaria</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel da Portaria - Sistema de Condomínio</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f4f6f9; padding: 20px; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
-        .btn-voltar { background: #6c757d; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .form-group { margin-top: 10px; }
-        input, select, button { padding: 10px; border-radius: 4px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; margin-top: 5px; }
-        button.btn-salvar { background: #28a745; color: white; font-weight: bold; border: none; cursor: pointer; margin-top: 15px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; padding: 20px; margin: 0; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .btn-voltar { background: #6c757d; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn-voltar:hover { background: #5a6268; }
+        .form-group { margin-top: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; color: #333; }
+        input, select, button { padding: 11px; border-radius: 6px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; font-size: 14px; }
+        button.btn-salvar { background: #28a745; color: white; font-weight: bold; border: none; cursor: pointer; margin-top: 20px; font-size: 16px; }
+        button.btn-salvar:hover { background: #218838; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { border: 1px solid #e0e0e0; padding: 12px; text-align: left; }
         th { background: #007bff; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .btn-entregar { background: #17a2b8; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-entregar:hover { background: #138496; }
     </style>
 </head>
 <body>
@@ -21,21 +28,21 @@
     <h2>📦 Painel de Recepção de Encomendas</h2>
 
     <form id="formEnc" onsubmit="salvar(event)">
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 15px;">
             <div style="flex: 1;">
                 <label>Bloco:</label>
-                <input type="number" id="bloco" required onchange="carregarMoradores()">
+                <input type="number" id="bloco" required onchange="carregarMoradores()" placeholder="Ex: 1">
             </div>
             <div style="flex: 1;">
                 <label>Apartamento:</label>
-                <input type="number" id="apartamento" required onchange="carregarMoradores()">
+                <input type="number" id="apartamento" required onchange="carregarMoradores()" placeholder="Ex: 101">
             </div>
         </div>
 
         <div class="form-group">
             <label>Destinatário (Morador):</label>
             <select id="morador_id" required>
-                <option value="">Preencha o Bloco e Apartamento...</option>
+                <option value="">Informe primeiro o Bloco e Apartamento...</option>
             </select>
         </div>
 
@@ -46,6 +53,7 @@
                 <option value="Envelope">Envelope</option>
                 <option value="Sacola">Sacola</option>
                 <option value="Pacote Pequeno">Pacote Pequeno</option>
+                <option value="Outros">Outros</option>
             </select>
         </div>
 
@@ -63,17 +71,17 @@
         </div>
 
         <div class="form-group">
-            <label>Foto do Pacote:</label>
+            <label>Foto do Pacote (Opcional):</label>
             <input type="file" id="foto" accept="image/*">
         </div>
 
         <button type="submit" class="btn-salvar">Registrar e Notificar WhatsApp</button>
     </form>
 
-    <hr style="margin-top: 30px;">
+    <hr style="margin-top: 35px; border: 0; border-top: 1px solid #ddd;">
 
-    <h3>🔍 Encomendas Cadastradas</h3>
-    <input type="text" id="busca" placeholder="Pesquisar por nome, bloco, apartamento, protocolo ou transportadora..." onkeyup="pesquisar()">
+    <h3>🔍 Encomendas Registradas</h3>
+    <input type="text" id="busca" placeholder="Pesquisar por morador, bloco, apartamento, protocolo ou transportadora..." onkeyup="pesquisar()">
     
     <table>
         <thead>
@@ -93,6 +101,7 @@
 </div>
 
 <script>
+// Carrega automaticamente os moradores vinculados ao Bloco/Apto digitados
 async function carregarMoradores() {
     const bloco = document.getElementById('bloco').value;
     const ap = document.getElementById('apartamento').value;
@@ -114,6 +123,7 @@ async function carregarMoradores() {
     });
 }
 
+// Salva a encomenda e envia o link com a foto no WhatsApp
 async function salvar(e) {
     e.preventDefault();
     const formData = new FormData();
@@ -129,11 +139,20 @@ async function salvar(e) {
 
     const res = await fetch('/api/encomendas', { method: 'POST', body: formData });
     const json = await res.json();
+
+    if (!res.ok) {
+        alert("⚠️ " + (json.erro || "Erro ao registrar encomenda"));
+        return;
+    }
+
     alert(json.mensagem);
 
     if (json.celular_morador) {
         let num = json.celular_morador.replace(/\D/g, '');
         if (!num.startsWith('55')) num = '55' + num;
+
+        // Anexa o link direto da foto do pacote (se enviada)
+        let linkFoto = json.foto_url ? `\n📷 *Foto da Encomenda:* https://sistema-condominio-fm3o.onrender.com${json.foto_url}\n` : '';
 
         const txt = encodeURIComponent(
             `📦 *Aviso de Encomenda - Portaria*\n\n` +
@@ -141,7 +160,9 @@ async function salvar(e) {
             `Chegou uma encomenda para você.\n\n` +
             `• *Protocolo Anual:* #${json.protocolo}\n` +
             `• *Transportadora:* ${json.empresa}\n` +
-            `• *Recebido por:* ${json.porteiro_nome}\n\n` +
+            `• *Recebido por:* ${json.porteiro_nome}\n` +
+            linkFoto + `\n` +
+            `👉 *Atualize seu cadastro (máx. 4 por apto):*\nhttps://sistema-condominio-fm3o.onrender.com/meu-cadastro\n\n` +
             `Pode vir retirar na portaria!`
         );
 
@@ -150,9 +171,11 @@ async function salvar(e) {
     }
 
     document.getElementById('formEnc').reset();
+    document.getElementById('morador_id').innerHTML = '<option value="">Informe primeiro o Bloco e Apartamento...</option>';
     pesquisar();
 }
 
+// Pesquisa as encomendas no banco
 async function pesquisar() {
     const q = document.getElementById('busca').value;
     const res = await fetch(`/api/encomendas/busca?q=${q}`);
@@ -161,6 +184,7 @@ async function pesquisar() {
 
     tabela.innerHTML = '';
     encomendas.forEach(enc => {
+        let fotoLink = enc.foto_url ? `<br><a href="${enc.foto_url}" target="_blank">📷 Ver Foto</a>` : '';
         tabela.innerHTML += `
             <tr>
                 <td>#${enc.protocolo_anual}</td>
@@ -171,15 +195,17 @@ async function pesquisar() {
                 <td>${enc.data_recebimento}</td>
                 <td><b>${enc.status}</b></td>
                 <td>
-                    ${enc.status === 'Pendente' ? `<button onclick="darBaixa(${enc.id})">Entregar</button>` : 'Entregue'}
+                    ${enc.status === 'Pendente' ? `<button class="btn-entregar" onclick="darBaixa(${enc.id})">Entregar</button>` : 'Entregue'}
+                    ${fotoLink}
                 </td>
             </tr>
         `;
     });
 }
 
+// Confirma a retirada do pacote
 async function darBaixa(id) {
-    const retirado_por = prompt("Nome da pessoa que está retirando:");
+    const retirado_por = prompt("Nome da pessoa que está retirando o pacote:");
     if (!retirado_por) return;
 
     await fetch(`/api/encomendas/${id}/retirar`, {
@@ -191,6 +217,7 @@ async function darBaixa(id) {
     pesquisar();
 }
 
+// Carrega as encomendas cadastradas ao abrir a página
 pesquisar();
 </script>
 </body>

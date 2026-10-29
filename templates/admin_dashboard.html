@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Painel Geral - Administrador</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #222; color: #fff; padding: 20px; margin: 0; }
+        .container { max-width: 1100px; margin: auto; background: #333; padding: 25px; border-radius: 8px; }
+        .box-assinatura { background: #444; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 5px solid #007bff; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; color: black; border-radius: 6px; overflow: hidden; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+        th { background: #d9534f; color: white; }
+        button { padding: 8px 14px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; }
+        .btn-del { background: #dc3545; color: white; }
+        .btn-add { background: #28a745; color: white; padding: 10px 15px; margin-bottom: 10px; }
+        .btn-voltar { background: #6c757d; color: white; margin-bottom: 20px; }
+        .btn-plano { color: white; margin-right: 8px; padding: 10px 15px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <button class="btn-voltar" onclick="location.href='/logout'">🚪 Sair do Administrador</button>
+    <h2>⚙️ Painel Geral de Administração do Condomínio</h2>
+
+    <!-- CARD DE GERENCIAMENTO DA ASSINATURA -->
+    <div class="box-assinatura">
+        <h3>💳 Status da Assinatura do Condomínio</h3>
+        <p>Status: <b id="status-assinatura">Carregando...</b></p>
+        <p>Validade: <b id="validade-assinatura">--/--/----</b> (<span id="dias-restantes">0</span> dias restantes)</p>
+
+        <h4>Liberar / Adicionar Plano:</h4>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn-plano" onclick="liberarPlano('1mes')" style="background: #17a2b8;">➕ 1 Mês (30 Dias)</button>
+            <button class="btn-plano" onclick="liberarPlano('6meses')" style="background: #ffc107; color: black;">➕ 6 Meses (180 Dias)</button>
+            <button class="btn-plano" onclick="liberarPlano('1ano')" style="background: #28a745;">➕ 1 Ano (365 Dias)</button>
+        </div>
+    </div>
+
+    <h3>🛡️ Porteiros Cadastrados</h3>
+    <button class="btn-add" onclick="location.href='/cadastro-porteiro'">+ Cadastrar Novo Porteiro</button>
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Nome</th><th>Matrícula</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="tb-porteiros"></tbody>
+    </table>
+
+    <hr style="margin: 30px 0; border-color: #555;">
+
+    <h3>👥 Moradores Cadastrados (Máx. 4 por apto)</h3>
+    <table>
+        <thead>
+            <tr><th>ID</th><th>Nome</th><th>Telefone</th><th>CPF</th><th>Bloco/Apto</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="tb-moradores"></tbody>
+    </table>
+
+    <hr style="margin: 30px 0; border-color: #555;">
+
+    <h3>📦 Encomendas Registradas</h3>
+    <table>
+        <thead>
+            <tr><th>Protocolo</th><th>Bloco/Apto</th><th>Transportadora</th><th>Status</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="tb-encomendas"></tbody>
+    </table>
+</div>
+
+<script>
+async function carregarAssinatura() {
+    const res = await fetch('/api/admin/assinatura');
+    const data = await res.json();
+    
+    document.getElementById('validade-assinatura').innerText = data.data_expiracao;
+    document.getElementById('dias-restantes').innerText = data.dias_restantes;
+    
+    const statusEl = document.getElementById('status-assinatura');
+    if (data.ativo) {
+        statusEl.innerText = "✅ Ativo";
+        statusEl.style.color = "#28a745";
+    } else {
+        statusEl.innerText = "❌ Expirado";
+        statusEl.style.color = "#dc3545";
+    }
+}
+
+async function liberarPlano(plano) {
+    if (confirm(`Confirma a liberação do plano selecionado?`)) {
+        const res = await fetch('/api/admin/assinatura', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plano })
+        });
+        const json = await res.json();
+        alert(json.mensagem);
+        carregarAssinatura();
+    }
+}
+
+async function carregarTudo() {
+    carregarAssinatura();
+
+    // Porteiros
+    const resP = await fetch('/api/admin/porteiros');
+    const porteiros = await resP.json();
+    document.getElementById('tb-porteiros').innerHTML = porteiros.map(p => `
+        <tr>
+            <td>${p.id}</td><td>${p.nome}</td><td>${p.matricula}</td>
+            <td><button class="btn-del" onclick="delPorteiro(${p.id})">Excluir</button></td>
+        </tr>
+    `).join('');
+
+    // Moradores
+    const resM = await fetch('/api/admin/moradores');
+    const moradores = await resM.json();
+    document.getElementById('tb-moradores').innerHTML = moradores.map(m => `
+        <tr>
+            <td>${m.id}</td><td>${m.nome}</td><td>${m.celular}</td><td>${m.cpf}</td><td>Bl ${m.bloco} - Ap ${m.apartamento}</td>
+            <td><button class="btn-del" onclick="delMorador(${m.id})">Excluir</button></td>
+        </tr>
+    `).join('');
+
+    // Encomendas
+    const resE = await fetch('/api/encomendas/busca');
+    const encomendas = await resE.json();
+    document.getElementById('tb-encomendas').innerHTML = encomendas.map(e => `
+        <tr>
+            <td>#${e.protocolo_anual}</td><td>Bl ${e.bloco} - Ap ${e.apartamento}</td><td>${e.empresa_entrega}</td><td>${e.status}</td>
+            <td><button class="btn-del" onclick="delEncomenda(${e.id})">Excluir</button></td>
+        </tr>
+    `).join('');
+}
+
+async function delPorteiro(id) {
+    if (confirm("Deseja realmente remover este porteiro?")) {
+        await fetch(`/api/admin/porteiros/${id}`, { method: 'DELETE' });
+        carregarTudo();
+    }
+}
+
+async function delMorador(id) {
+    if (confirm("Deseja realmente remover este morador?")) {
+        await fetch(`/api/admin/moradores/${id}`, { method: 'DELETE' });
+        carregarTudo();
+    }
+}
+
+async function delEncomenda(id) {
+    if (confirm("Deseja excluir esta encomenda?")) {
+        await fetch(`/api/admin/encomendas/${id}`, { method: 'DELETE' });
+        carregarTudo();
+    }
+}
+
+carregarTudo();
+</script>
+</body>
+</html>
