@@ -15,21 +15,23 @@
 <div class="card">
     <button class="btn-voltar" onclick="location.href='/'">🏠 Voltar ao Início</button>
     <h2>🛡️ Login da Portaria</h2>
-    <input type="text" id="cpf" placeholder="Digite seu CPF">
-    <input type="password" id="senha" placeholder="Sua Senha">
-    <button class="btn-login" onclick="loginPorteiro()">Entrar na Portaria</button>
-    <p style="text-align: center;"><a href="/cadastro-porteiro">Cadastrar Porteiro</a></p>
+    <form autocomplete="off" onsubmit="loginPorteiro(event)">
+        <input type="text" id="matricula" placeholder="Digite sua Matrícula" autocomplete="off" required>
+        <input type="password" id="senha" placeholder="Sua Senha" autocomplete="new-password" required>
+        <button type="submit" class="btn-login">Entrar na Portaria</button>
+    </form>
 </div>
 
 <script>
-async function loginPorteiro() {
-    const cpf = document.getElementById('cpf').value;
+async function loginPorteiro(e) {
+    e.preventDefault();
+    const matricula = document.getElementById('matricula').value;
     const senha = document.getElementById('senha').value;
 
     const res = await fetch('/api/porteiro/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cpf, senha })
+        body: JSON.stringify({ matricula, senha })
     });
 
     const json = await res.json();

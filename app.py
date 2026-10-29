@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -8,13 +8,13 @@ import init_db
 
 app = Flask(__name__)
 app.secret_key = 'chave_secreta_segura_condominio'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=5) # Standby: expira em 5 min
 CORS(app)
 
 DATABASE = 'condominio.db'
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
-# Credenciais do Administrador
 ADMIN_USUARIO = "admin"
 ADMIN_SENHA = "admin123condominio"
 
@@ -31,7 +31,6 @@ def conectar_banco():
 def arquivo_permitido(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# GERAÇÃO DE PROTOCOLO ANUAL (Ex: 2026-0001)
 def gerar_protocolo_anual(cursor):
     ano_atual = datetime.now().strftime("%Y")
     cursor.execute('''
@@ -48,6 +47,18 @@ def gerar_protocolo_anual(cursor):
         novo_num = 1
         
     return f"{ano_atual}-{novo_num:04d}"
+
+@app.before_request
+def checar_inatividade():
+    session.permanent = True
+
+@app.after_request
+def aplicar_headers_seguranca(response):
+    # Desativa salvamento de cache e preenchimento automatico do navegador
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/uploads/<filename>')
 def imagem_upload(filename):
@@ -105,28 +116,31 @@ def login_admin():
     senha = dados.get('senha')
 
     if usuario == ADMIN_USUARIO and senha == ADMIN_SENHA:
+        session.clear()
         session['admin_logado'] = True
         return jsonify({"sucesso": True}), 200
     return jsonify({"erro": "Usuário ou senha de Administrador inválidos!"}), 401
 
+# LOGIN DO PORTEIRO POR MATRÍCULA
 @app.route('/api/porteiro/login', methods=['POST'])
 def login_porteiro():
     dados = request.json
-    cpf = dados.get('cpf', '').strip()
+    matricula = dados.get('matricula', '').strip()
     senha = dados.get('senha')
 
     conexao = conectar_banco()
     cursor = conexao.cursor()
-    cursor.execute('SELECT * FROM porteiros WHERE cpf = ? AND senha = ?', (cpf, senha))
+    cursor.execute('SELECT * FROM porteiros WHERE matricula = ? AND senha = ?', (matricula, senha))
     porteiro = cursor.fetchone()
     conexao.close()
 
     if porteiro:
+        session.clear()
         session['porteiro_logado'] = True
         session['porteiro_id'] = porteiro['id']
         session['porteiro_nome'] = porteiro['nome']
         return jsonify({"sucesso": True, "nome": porteiro['nome']}), 200
-    return jsonify({"erro": "CPF ou Senha de porteiro incorretos!"}), 401
+    return jsonify({"erro": "Matrícula ou Senha de porteiro incorretos!"}), 401
 
 @app.route('/api/morador/login', methods=['POST'])
 def login_morador():
@@ -144,6 +158,7 @@ def login_morador():
         return jsonify({"erro": "CPF ou Senha incorretos!"}), 401
 
     morador_dict = dict(morador)
+    session.clear()
     session['morador_id'] = morador_dict['id']
 
     cursor.execute('''
@@ -163,7 +178,7 @@ def login_morador():
         "encomendas": encomendas
     }), 200
 
-# CADASTRO DE PORTEIRO (RESTRITO AO ADMIN)
+# CADASTRO DE PORTEIRO POR MATRÍCULA
 @app.route('/api/porteiro/cadastrar', methods=['POST'])
 def cadastrar_porteiro():
     if not session.get('admin_logado'):
@@ -171,18 +186,18 @@ def cadastrar_porteiro():
 
     dados = request.json
     nome = dados.get('nome')
-    cpf = dados.get('cpf', '').strip()
+    matricula = dados.get('matricula', '').strip()
     senha = dados.get('senha')
 
     conexao = conectar_banco()
     cursor = conexao.cursor()
 
     try:
-        cursor.execute('INSERT INTO porteiros (nome, cpf, senha) VALUES (?, ?, ?)', (nome, cpf, senha))
+        cursor.execute('INSERT INTO porteiros (nome, matricula, senha) VALUES (?, ?, ?)', (nome, matricula, senha))
         conexao.commit()
         return jsonify({"mensagem": "Porteiro cadastrado com sucesso!"}), 201
     except sqlite3.IntegrityError:
-        return jsonify({"erro": "CPF de porteiro já cadastrado!"}), 400
+        return jsonify({"erro": "Matrícula de porteiro já cadastrada!"}), 400
     except Exception as e:
         return jsonify({"erro": str(e)}), 400
     finally:
@@ -235,7 +250,7 @@ def buscar_moradores_unidade(bloco, apartamento):
 @app.route('/api/encomendas', methods=['POST'])
 def registrar_encomenda():
     if not session.get('porteiro_logado'):
-        return jsonify({"erro": "Acesso não autorizado!"}), 401
+        return jsonify({"erro": "Sessão expirada. Faça login novamente!"}), 401
 
     bloco = request.form.get('bloco')
     apartamento = request.form.get('apartamento')
@@ -283,11 +298,11 @@ def registrar_encomenda():
         }), 201
 
     except Exception as e:
-        return jsonify({"erro": str(e)}), 400
+        return jsonify({"erro": f"Erro interno ao salvar: {str(e)}"}), 400
     finally:
         conexao.close()
 
-# CONSULTA GLOBAL DA PORTARIA
+# CONSULTA GLOBAL
 @app.route('/api/encomendas/busca', methods=['GET'])
 def buscar_encomendas_portaria():
     termo = request.args.get('q', '').strip()
@@ -339,18 +354,6 @@ def dar_baixa_encomenda(id_encomenda):
     conexao.close()
 
     return jsonify({"mensagem": "Entrega confirmada com sucesso!"}), 200
-
-# ROTA DE LIMPEZA DO BANCO DE DADOS
-@app.route('/zerar-banco-de-dados-secret-123')
-def zerar_banco():
-    conexao = conectar_banco()
-    cursor = conexao.cursor()
-    cursor.execute('DELETE FROM encomendas')
-    cursor.execute('DELETE FROM moradores')
-    cursor.execute('DELETE FROM porteiros')
-    conexao.commit()
-    conexao.close()
-    return "<h1>✅ Banco de dados zerado com sucesso! Todos os registos foram apagados.</h1>"
 
 if __name__ == '__main__':
     init_db.criar_banco()
