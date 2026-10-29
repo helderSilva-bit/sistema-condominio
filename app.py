@@ -7,14 +7,21 @@ from werkzeug.utils import secure_filename
 import init_db
 
 app = Flask(__name__)
-app.secret_key = 'chave_secreta_segura_condominio'  # Necessário para gerenciar sessões e proteção de acesso
+app.secret_key = 'chave_secreta_segura_condominio'
 CORS(app)
 
 DATABASE = 'condominio.db'
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
+# Credenciais do Administrador
+ADMIN_USUARIO = "admin"
+ADMIN_SENHA = "admin123condominio"
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 def conectar_banco():
     conexao = sqlite3.connect(DATABASE)
@@ -24,28 +31,29 @@ def conectar_banco():
 def arquivo_permitido(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def gerar_protocolo_diario(cursor):
-    hoje_prefixo = datetime.now().strftime("%Y%m%d")
+# GERAÇÃO DE PROTOCOLO ANUAL (Ex: 2026-0001)
+def gerar_protocolo_anual(cursor):
+    ano_atual = datetime.now().strftime("%Y")
     cursor.execute('''
-        SELECT protocolo_diario FROM encomendas 
-        WHERE protocolo_diario LIKE ? 
+        SELECT protocolo_anual FROM encomendas 
+        WHERE protocolo_anual LIKE ? 
         ORDER BY id DESC LIMIT 1
-    ''', (f"{hoje_prefixo}-%",))
+    ''', (f"{ano_atual}-%",))
     ultima = cursor.fetchone()
     
     if ultima:
-        ultimo_num = int(ultima['protocolo_diario'].split('-')[1])
+        ultimo_num = int(ultima['protocolo_anual'].split('-')[1])
         novo_num = ultimo_num + 1
     else:
         novo_num = 1
         
-    return f"{hoje_prefixo}-{novo_num:03d}"
+    return f"{ano_atual}-{novo_num:04d}"
 
 @app.route('/uploads/<filename>')
 def imagem_upload(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# ROTAS DAS PÁGINAS (Com Proteção de Acesso)
+# ROTAS DAS PÁGINAS
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -54,8 +62,14 @@ def index():
 def login_porteiro_page():
     return render_template('login_porteiro.html')
 
+@app.route('/login-admin')
+def login_admin_page():
+    return render_template('login_admin.html')
+
 @app.route('/cadastro-porteiro')
 def cadastro_porteiro_page():
+    if not session.get('admin_logado'):
+        return redirect(url_for('login_admin_page'))
     return render_template('cadastro_porteiro.html')
 
 @app.route('/login-morador')
@@ -66,27 +80,35 @@ def login_morador_page():
 def pagina_cadastro():
     return render_template('cadastro.html')
 
-# Rota Protegida: Portaria só acessa se estiver logado como Porteiro
 @app.route('/portaria')
 def pagina_portaria():
     if not session.get('porteiro_logado'):
-        return redirect(url_for('index'))
+        return redirect(url_for('login_porteiro_page'))
     return render_template('portaria.html')
 
-# Rota Protegida: Morador só acessa se estiver logado como Morador
 @app.route('/morador')
 def pagina_morador():
     if not session.get('morador_id'):
-        return redirect(url_for('index'))
+        return redirect(url_for('login_morador_page'))
     return render_template('morador.html')
 
-# Rota de Logout
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# APIS DE AUTENTICAÇÃO E NAVEGAÇÃO
+# LOGINS
+@app.route('/api/admin/login', methods=['POST'])
+def login_admin():
+    dados = request.json
+    usuario = dados.get('usuario')
+    senha = dados.get('senha')
+
+    if usuario == ADMIN_USUARIO and senha == ADMIN_SENHA:
+        session['admin_logado'] = True
+        return jsonify({"sucesso": True}), 200
+    return jsonify({"erro": "Usuário ou senha de Administrador inválidos!"}), 401
+
 @app.route('/api/porteiro/login', methods=['POST'])
 def login_porteiro():
     dados = request.json
@@ -101,8 +123,9 @@ def login_porteiro():
 
     if porteiro:
         session['porteiro_logado'] = True
+        session['porteiro_id'] = porteiro['id']
         session['porteiro_nome'] = porteiro['nome']
-        return jsonify({"sucesso": True}), 200
+        return jsonify({"sucesso": True, "nome": porteiro['nome']}), 200
     return jsonify({"erro": "CPF ou Senha de porteiro incorretos!"}), 401
 
 @app.route('/api/morador/login', methods=['POST'])
@@ -140,7 +163,31 @@ def login_morador():
         "encomendas": encomendas
     }), 200
 
-# APIS DE CADASTRO E GESTÃO
+# CADASTRO DE PORTEIRO (RESTRITO AO ADMIN)
+@app.route('/api/porteiro/cadastrar', methods=['POST'])
+def cadastrar_porteiro():
+    if not session.get('admin_logado'):
+        return jsonify({"erro": "Apenas o Administrador pode cadastrar novos porteiros!"}), 403
+
+    dados = request.json
+    nome = dados.get('nome')
+    cpf = dados.get('cpf', '').strip()
+    senha = dados.get('senha')
+
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+
+    try:
+        cursor.execute('INSERT INTO porteiros (nome, cpf, senha) VALUES (?, ?, ?)', (nome, cpf, senha))
+        conexao.commit()
+        return jsonify({"mensagem": "Porteiro cadastrado com sucesso!"}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"erro": "CPF de porteiro já cadastrado!"}), 400
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 400
+    finally:
+        conexao.close()
+
 @app.route('/api/moradores/cadastrar', methods=['POST'])
 def cadastrar_morador():
     dados = request.json
@@ -175,27 +222,6 @@ def cadastrar_morador():
     finally:
         conexao.close()
 
-@app.route('/api/porteiro/cadastrar', methods=['POST'])
-def cadastrar_porteiro():
-    dados = request.json
-    nome = dados.get('nome')
-    cpf = dados.get('cpf', '').strip()
-    senha = dados.get('senha')
-
-    conexao = conectar_banco()
-    cursor = conexao.cursor()
-
-    try:
-        cursor.execute('INSERT INTO porteiros (nome, cpf, senha) VALUES (?, ?, ?)', (nome, cpf, senha))
-        conexao.commit()
-        return jsonify({"mensagem": "Porteiro cadastrado com sucesso!"}), 201
-    except sqlite3.IntegrityError:
-        return jsonify({"erro": "CPF de porteiro já cadastrado!"}), 400
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 400
-    finally:
-        conexao.close()
-
 @app.route('/api/moradores/buscar/<int:bloco>/<int:apartamento>', methods=['GET'])
 def buscar_moradores_unidade(bloco, apartamento):
     conexao = conectar_banco()
@@ -205,12 +231,20 @@ def buscar_moradores_unidade(bloco, apartamento):
     conexao.close()
     return jsonify(moradores), 200
 
+# REGISTRAR ENCOMENDA
 @app.route('/api/encomendas', methods=['POST'])
 def registrar_encomenda():
+    if not session.get('porteiro_logado'):
+        return jsonify({"erro": "Acesso não autorizado!"}), 401
+
     bloco = request.form.get('bloco')
     apartamento = request.form.get('apartamento')
     morador_id = request.form.get('morador_id')
     tipo = request.form.get('tipo_encomenda')
+    empresa = request.form.get('empresa_entrega', 'Outros')
+    
+    porteiro_id = session.get('porteiro_id')
+    porteiro_nome = session.get('porteiro_nome', 'Portaria')
     data_atual = datetime.now().strftime("%d/%m/%Y %H:%M")
 
     foto_caminho = None
@@ -225,12 +259,12 @@ def registrar_encomenda():
     cursor = conexao.cursor()
 
     try:
-        protocolo = gerar_protocolo_diario(cursor)
+        protocolo = gerar_protocolo_anual(cursor)
 
         cursor.execute('''
-            INSERT INTO encomendas (protocolo_diario, bloco, apartamento, morador_id, tipo_encomenda, foto_url, data_recebimento)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (protocolo, bloco, apartamento, morador_id, tipo, foto_caminho, data_atual))
+            INSERT INTO encomendas (protocolo_anual, bloco, apartamento, morador_id, tipo_encomenda, empresa_entrega, porteiro_id, porteiro_nome, foto_url, data_recebimento)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (protocolo, bloco, apartamento, morador_id, tipo, empresa, porteiro_id, porteiro_nome, foto_caminho, data_atual))
         conexao.commit()
 
         cursor.execute('SELECT nome, celular FROM moradores WHERE id = ?', (morador_id,))
@@ -240,8 +274,10 @@ def registrar_encomenda():
         nome_morador = morador['nome'] if morador else "Morador"
 
         return jsonify({
-            "mensagem": f"Encomenda registrada para {nome_morador}! Protocolo: #{protocolo}",
+            "mensagem": f"Encomenda registrada por {porteiro_nome}! Protocolo: #{protocolo}",
             "protocolo": protocolo,
+            "empresa": empresa,
+            "porteiro_nome": porteiro_nome,
             "celular_morador": celular,
             "nome_morador": nome_morador
         }), 201
@@ -251,6 +287,7 @@ def registrar_encomenda():
     finally:
         conexao.close()
 
+# CONSULTA GLOBAL DA PORTARIA
 @app.route('/api/encomendas/busca', methods=['GET'])
 def buscar_encomendas_portaria():
     termo = request.args.get('q', '').strip()
@@ -268,8 +305,8 @@ def buscar_encomendas_portaria():
     parametros = []
 
     if termo:
-        sql += " AND (m.nome LIKE ? OR e.bloco LIKE ? OR e.apartamento LIKE ? OR e.protocolo_diario LIKE ?)"
-        parametros.extend([f"%{termo}%", f"%{termo}%", f"%{termo}%", f"%{termo}%"])
+        sql += " AND (m.nome LIKE ? OR e.bloco LIKE ? OR e.apartamento LIKE ? OR e.protocolo_anual LIKE ? OR e.empresa_entrega LIKE ? OR e.porteiro_nome LIKE ?)"
+        parametros.extend([f"%{termo}%", f"%{termo}%", f"%{termo}%", f"%{termo}%", f"%{termo}%", f"%{termo}%"])
 
     if status_filtro in ['Pendente', 'Entregue']:
         sql += " AND e.status = ?"
@@ -302,6 +339,18 @@ def dar_baixa_encomenda(id_encomenda):
     conexao.close()
 
     return jsonify({"mensagem": "Entrega confirmada com sucesso!"}), 200
+
+# ROTA DE LIMPEZA DO BANCO DE DADOS
+@app.route('/zerar-banco-de-dados-secret-123')
+def zerar_banco():
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+    cursor.execute('DELETE FROM encomendas')
+    cursor.execute('DELETE FROM moradores')
+    cursor.execute('DELETE FROM porteiros')
+    conexao.commit()
+    conexao.close()
+    return "<h1>✅ Banco de dados zerado com sucesso! Todos os registos foram apagados.</h1>"
 
 if __name__ == '__main__':
     init_db.criar_banco()

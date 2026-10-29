@@ -1,16 +1,11 @@
+Python
 import sqlite3
-import os
 
 def criar_banco():
-    if not os.path.exists('uploads'):
-        os.makedirs('uploads')
-
     conexao = sqlite3.connect('condominio.db')
     cursor = conexao.cursor()
 
-    print("⚙️ Criando banco de dados atualizado...")
-
-    # 1. Tabela de Moradores (com senha e CPF)
+    # Tabela de Moradores
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS moradores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,7 +18,7 @@ def criar_banco():
         )
     ''')
 
-    # 2. Tabela de Porteiros (cadastrados com sua própria senha)
+    # Tabela de Porteiros
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS porteiros (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,27 +28,31 @@ def criar_banco():
         )
     ''')
 
-    # 3. Tabela de Encomendas (vinculada ao morador_id)
+    # Tabela de Encomendas (Com Empresa e Porteiro Responsavel)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS encomendas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            protocolo_diario TEXT NOT NULL,
+            protocolo_anual TEXT UNIQUE NOT NULL,
             bloco INTEGER NOT NULL,
             apartamento INTEGER NOT NULL,
             morador_id INTEGER,
             tipo_encomenda TEXT NOT NULL,
+            empresa_entrega TEXT NOT NULL,
+            porteiro_id INTEGER,
+            porteiro_nome TEXT,
             foto_url TEXT,
-            status TEXT NOT NULL DEFAULT 'Pendente',
             data_recebimento TEXT NOT NULL,
-            data_retirada TEXT,
+            status TEXT DEFAULT 'Pendente',
             retirado_por TEXT,
-            FOREIGN KEY (morador_id) REFERENCES moradores (id)
+            data_retirada TEXT,
+            FOREIGN KEY (morador_id) REFERENCES moradores(id),
+            FOREIGN KEY (porteiro_id) REFERENCES porteiros(id)
         )
     ''')
 
     conexao.commit()
     conexao.close()
-    print("✅ Banco de dados recriado com tabelas de Moradores, Porteiros e Encomendas!")
 
 if __name__ == '__main__':
     criar_banco()
+2. Ficheiro app.py

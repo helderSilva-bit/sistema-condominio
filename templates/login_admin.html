@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Administrador</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 10px; width: 100%; max-width: 350px; text-align: center; }
+        input, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        button.btn-login { background: #d9534f; color: white; font-weight: bold; border: none; cursor: pointer; }
+        .btn-voltar { background: #6c757d; color: white; font-weight: bold; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <button class="btn-voltar" onclick="location.href='/'">🏠 Voltar ao Início</button>
+    <h2>⚙️ Painel do Administrador</h2>
+    <p>Acesso exclusivo para cadastrar a equipe de portaria.</p>
+    <input type="text" id="usuario" placeholder="Usuário Admin (ex: admin)">
+    <input type="password" id="senha" placeholder="Senha Admin">
+    <button class="btn-login" onclick="loginAdmin()">Entrar como Admin</button>
+</div>
+
+<script>
+async function loginAdmin() {
+    const usuario = document.getElementById('usuario').value;
+    const senha = document.getElementById('senha').value;
+
+    const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario, senha })
+    });
+
+    const json = await res.json();
+    if (res.ok) {
+        window.location.href = '/cadastro-porteiro';
+    } else {
+        alert("⚠️ " + json.erro);
+    }
+}
+</script>
+</body>
+</html>

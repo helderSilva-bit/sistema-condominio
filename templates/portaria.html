@@ -2,78 +2,116 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Portaria - Registrar Encomenda</title>
+    <title>Painel da Portaria</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 600px; margin-bottom: 20px; }
-        label { font-weight: bold; margin-top: 10px; display: block; }
-        input, select, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
-        button { background: #28a745; color: white; font-weight: bold; border: none; margin-top: 15px; cursor: pointer; }
-        .item { border: 1px solid #ddd; padding: 12px; margin-top: 10px; border-radius: 8px; }
-        .img-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 6px; margin-top: 10px; }
+        body { font-family: Arial, sans-serif; background: #f4f6f9; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
+        .btn-voltar { background: #6c757d; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .form-group { margin-top: 10px; }
+        input, select, button { padding: 10px; border-radius: 4px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; margin-top: 5px; }
+        button.btn-salvar { background: #28a745; color: white; font-weight: bold; border: none; cursor: pointer; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #007bff; color: white; }
     </style>
 </head>
 <body>
+<div class="container">
+    <button class="btn-voltar" onclick="location.href='/logout'">🚪 Sair / Voltar ao Início</button>
+    <h2>📦 Painel de Recepção de Encomendas</h2>
 
-<div class="card">
-    <h2>📦 Nova Encomenda (Portaria)</h2>
     <form id="formEnc" onsubmit="salvar(event)">
-        <div style="display:flex; gap:10px;">
-            <div>
+        <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
                 <label>Bloco:</label>
-                <input type="number" id="bloco" required placeholder="Ex: 1" onchange="carregarMoradores()">
+                <input type="number" id="bloco" required onchange="carregarMoradores()">
             </div>
-            <div>
+            <div style="flex: 1;">
                 <label>Apartamento:</label>
-                <input type="number" id="apartamento" required placeholder="Ex: 101" onchange="carregarMoradores()">
+                <input type="number" id="apartamento" required onchange="carregarMoradores()">
             </div>
         </div>
 
-        <label>Morador Destinatário:</label>
-        <select id="morador_id" required>
-            <option value="">Informe o Bloco e Apto acima...</option>
-        </select>
+        <div class="form-group">
+            <label>Destinatário (Morador):</label>
+            <select id="morador_id" required>
+                <option value="">Preencha o Bloco e Apartamento...</option>
+            </select>
+        </div>
 
-        <label>Tipo de Encomenda:</label>
-        <select id="tipo">
-            <option value="Pacote/Caixa">Pacote / Caixa</option>
-            <option value="Carta/Envelope">Carta / Envelope</option>
-            <option value="iFood/Delivery">Delivery / Comida</option>
-        </select>
+        <div class="form-group">
+            <label>Tipo de Encomenda:</label>
+            <select id="tipo" required>
+                <option value="Caixa">Caixa</option>
+                <option value="Envelope">Envelope</option>
+                <option value="Sacola">Sacola</option>
+                <option value="Pacote Pequeno">Pacote Pequeno</option>
+            </select>
+        </div>
 
-        <label>Foto:</label>
-        <input type="file" id="foto" accept="image/*" required>
+        <div class="form-group">
+            <label>Empresa de Entrega / Transportadora:</label>
+            <select id="empresa" required>
+                <option value="Mercado Livre">Mercado Livre</option>
+                <option value="Correios">Correios</option>
+                <option value="Shopee">Shopee</option>
+                <option value="Amazon">Amazon</option>
+                <option value="Jadlog">Jadlog</option>
+                <option value="Loggi">Loggi</option>
+                <option value="Outros">Outros / Entregador</option>
+            </select>
+        </div>
 
-        <button type="submit">Salvar e Notificar no WhatsApp</button>
+        <div class="form-group">
+            <label>Foto do Pacote:</label>
+            <input type="file" id="foto" accept="image/*">
+        </div>
+
+        <button type="submit" class="btn-salvar">Registrar e Notificar WhatsApp</button>
     </form>
-</div>
 
-<div class="card">
-    <h2>🔍 Buscar Encomendas</h2>
-    <input type="text" id="q" placeholder="Nome, Bloco, Apto ou Protocolo..." onkeyup="pesquisar()">
-    <div id="resultados"></div>
+    <hr style="margin-top: 30px;">
+
+    <h3>🔍 Encomendas Cadastradas</h3>
+    <input type="text" id="busca" placeholder="Pesquisar por nome, bloco, apartamento, protocolo ou transportadora..." onkeyup="pesquisar()">
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Protocolo</th>
+                <th>Bloco/Apto</th>
+                <th>Morador</th>
+                <th>Transportadora</th>
+                <th>Recebido Por</th>
+                <th>Data</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody id="tabela"></tbody>
+    </table>
 </div>
 
 <script>
 async function carregarMoradores() {
-    const b = document.getElementById('bloco').value;
-    const a = document.getElementById('apartamento').value;
-    const selectM = document.getElementById('morador_id');
+    const bloco = document.getElementById('bloco').value;
+    const ap = document.getElementById('apartamento').value;
+    const select = document.getElementById('morador_id');
 
-    if (!b || !a) return;
+    if (!bloco || !ap) return;
 
-    const res = await fetch(`/api/moradores/buscar/${b}/${a}`);
-    const lista = await res.json();
+    const res = await fetch(`/api/moradores/buscar/${bloco}/${ap}`);
+    const moradores = await res.json();
 
-    selectM.innerHTML = '';
-    if (lista.length === 0) {
-        selectM.innerHTML = '<option value="">⚠️ Nenhum morador cadastrado nesta unidade!</option>';
-    } else {
-        selectM.innerHTML = '<option value="">Selecione o Morador...</option>';
-        lista.forEach(m => {
-            selectM.innerHTML += `<option value="${m.id}">${m.nome}</option>`;
-        });
+    select.innerHTML = '';
+    if (moradores.length === 0) {
+        select.innerHTML = '<option value="">Nenhum morador cadastrado nesta unidade</option>';
+        return;
     }
+
+    moradores.forEach(m => {
+        select.innerHTML += `<option value="${m.id}">${m.nome} (Tel: ${m.celular})</option>`;
+    });
 }
 
 async function salvar(e) {
@@ -83,30 +121,31 @@ async function salvar(e) {
     formData.append('apartamento', document.getElementById('apartamento').value);
     formData.append('morador_id', document.getElementById('morador_id').value);
     formData.append('tipo_encomenda', document.getElementById('tipo').value);
-    formData.append('foto', document.getElementById('foto').files[0]);
+    formData.append('empresa_entrega', document.getElementById('empresa').value);
+    
+    if (document.getElementById('foto').files[0]) {
+        formData.append('foto', document.getElementById('foto').files[0]);
+    }
 
     const res = await fetch('/api/encomendas', { method: 'POST', body: formData });
     const json = await res.json();
     alert(json.mensagem);
 
     if (json.celular_morador) {
-        // Limpa o número de telefone mantendo apenas os dígitos
         let num = json.celular_morador.replace(/\D/g, '');
         if (!num.startsWith('55')) num = '55' + num;
 
-        // Texto formatado para a notificação
         const txt = encodeURIComponent(
             `📦 *Aviso de Encomenda - Portaria*\n\n` +
             `Olá, *${json.nome_morador}*!\n` +
             `Chegou uma encomenda para você.\n\n` +
-            `• *Protocolo:* #${json.protocolo}\n` +
-            `• *Tipo:* ${document.getElementById('tipo').value}\n\n` +
+            `• *Protocolo Anual:* #${json.protocolo}\n` +
+            `• *Transportadora:* ${json.empresa}\n` +
+            `• *Recebido por:* ${json.porteiro_nome}\n\n` +
             `Pode vir retirar na portaria!`
         );
 
-        // A API 'api.whatsapp.com' redireciona para a App no telemóvel ou para a Web no PC
         const urlWhatsapp = `https://api.whatsapp.com/send?phone=${num}&text=${txt}`;
-
         window.open(urlWhatsapp, '_blank');
     }
 
@@ -115,36 +154,43 @@ async function salvar(e) {
 }
 
 async function pesquisar() {
-    const q = document.getElementById('q').value;
+    const q = document.getElementById('busca').value;
     const res = await fetch(`/api/encomendas/busca?q=${q}`);
-    const dados = await res.json();
-    const div = document.getElementById('resultados');
-    div.innerHTML = '';
+    const encomendas = await res.json();
+    const tabela = document.getElementById('tabela');
 
-    dados.forEach(e => {
-        div.innerHTML += `
-            <div class="item">
-                <b>#${e.protocolo_diario}</b> - ${e.status}<br>
-                <b>Destinatário:</b> ${e.nome_morador || 'Não selecionado'}<br>
-                <b>Bloco:</b> ${e.bloco} | <b>Apto:</b> ${e.apartamento}<br>
-                ${e.foto_url ? `<img src="${e.foto_url}" class="img-preview">` : ''}
-                ${e.status === 'Pendente' ? `<button onclick="darBaixa(${e.id})">Dar Baixa/Entregar</button>` : ''}
-            </div>
+    tabela.innerHTML = '';
+    encomendas.forEach(enc => {
+        tabela.innerHTML += `
+            <tr>
+                <td>#${enc.protocolo_anual}</td>
+                <td>Bl ${enc.bloco} - Ap ${enc.apartamento}</td>
+                <td>${enc.nome_morador || 'N/I'}</td>
+                <td>${enc.empresa_entrega}</td>
+                <td>${enc.porteiro_nome || 'Portaria'}</td>
+                <td>${enc.data_recebimento}</td>
+                <td><b>${enc.status}</b></td>
+                <td>
+                    ${enc.status === 'Pendente' ? `<button onclick="darBaixa(${enc.id})">Entregar</button>` : 'Entregue'}
+                </td>
+            </tr>
         `;
     });
 }
 
 async function darBaixa(id) {
-    const quem = prompt("Quem retirou?", "Próprio Morador");
-    if (quem) {
-        await fetch(`/api/encomendas/${id}/retirar`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ retirado_por: quem })
-        });
-        pesquisar();
-    }
+    const retirado_por = prompt("Nome da pessoa que está retirando:");
+    if (!retirado_por) return;
+
+    await fetch(`/api/encomendas/${id}/retirar`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ retirado_por })
+    });
+
+    pesquisar();
 }
+
 pesquisar();
 </script>
 </body>
