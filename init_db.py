@@ -4,7 +4,7 @@ def criar_banco():
     conexao = sqlite3.connect('condominio.db')
     cursor = conexao.cursor()
 
-    # Recria as tabelas do zero para limpar dados antigos e atualizar colunas
+    # Recria as tabelas do zero para garantir a presença das novas colunas
     cursor.execute('DROP TABLE IF EXISTS encomendas')
     cursor.execute('DROP TABLE IF EXISTS moradores')
     cursor.execute('DROP TABLE IF EXISTS porteiros')
@@ -22,7 +22,7 @@ def criar_banco():
         )
     ''')
 
-    # Tabela de Porteiros (Usa MATRICULA em vez de CPF)
+    # Tabela de Porteiros (Utiliza MATRICULA em vez de CPF)
     cursor.execute('''
         CREATE TABLE porteiros (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -8,7 +8,7 @@ import init_db
 
 app = Flask(__name__)
 app.secret_key = 'chave_secreta_segura_condominio'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=5) # Standby: expira em 5 min
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=5)  # Expira por inatividade (standby) em 5 min
 CORS(app)
 
 DATABASE = 'condominio.db'
@@ -54,7 +54,7 @@ def checar_inatividade():
 
 @app.after_request
 def aplicar_headers_seguranca(response):
-    # Desativa salvamento de cache e preenchimento automatico do navegador
+    # Evita que o navegador salve a senha ou mantenha o login ao voltar
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
@@ -64,7 +64,7 @@ def aplicar_headers_seguranca(response):
 def imagem_upload(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# ROTAS DAS PÁGINAS
+# ROTAS DE PÁGINAS
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -121,7 +121,6 @@ def login_admin():
         return jsonify({"sucesso": True}), 200
     return jsonify({"erro": "Usuário ou senha de Administrador inválidos!"}), 401
 
-# LOGIN DO PORTEIRO POR MATRÍCULA
 @app.route('/api/porteiro/login', methods=['POST'])
 def login_porteiro():
     dados = request.json
@@ -302,7 +301,7 @@ def registrar_encomenda():
     finally:
         conexao.close()
 
-# CONSULTA GLOBAL
+# CONSULTA GLOBAL DA PORTARIA
 @app.route('/api/encomendas/busca', methods=['GET'])
 def buscar_encomendas_portaria():
     termo = request.args.get('q', '').strip()
@@ -355,12 +354,63 @@ def dar_baixa_encomenda(id_encomenda):
 
     return jsonify({"mensagem": "Entrega confirmada com sucesso!"}), 200
 
+# ROTA FORÇADA PARA RECONSTRUÇÃO COMPLETA DA BASE DE DADOS NA NUVEM
+@app.route('/reconstruir-banco-agora-99')
+def reconstruir_banco_agora():
+    conexao = sqlite3.connect(DATABASE)
+    cursor = conexao.cursor()
+    
+    cursor.execute('DROP TABLE IF EXISTS encomendas')
+    cursor.execute('DROP TABLE IF EXISTS moradores')
+    cursor.execute('DROP TABLE IF EXISTS porteiros')
+    
+    cursor.execute('''
+        CREATE TABLE moradores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            celular TEXT NOT NULL,
+            cpf TEXT UNIQUE NOT NULL,
+            senha TEXT NOT NULL,
+            bloco INTEGER NOT NULL,
+            apartamento INTEGER NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE porteiros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            matricula TEXT UNIQUE NOT NULL,
+            senha TEXT NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE encomendas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            protocolo_anual TEXT UNIQUE NOT NULL,
+            bloco INTEGER NOT NULL,
+            apartamento INTEGER NOT NULL,
+            morador_id INTEGER,
+            tipo_encomenda TEXT NOT NULL,
+            empresa_entrega TEXT NOT NULL,
+            porteiro_id INTEGER,
+            porteiro_nome TEXT,
+            foto_url TEXT,
+            data_recebimento TEXT NOT NULL,
+            status TEXT DEFAULT 'Pendente',
+            retirado_por TEXT,
+            data_retirada TEXT,
+            FOREIGN KEY (morador_id) REFERENCES moradores(id),
+            FOREIGN KEY (porteiro_id) REFERENCES porteiros(id)
+        )
+    ''')
+    
+    conexao.commit()
+    conexao.close()
+    
+    return "<h1>✅ Base de dados do Render totalmente limpa e recriada com a coluna MATRICULA!</h1>"
+
 if __name__ == '__main__':
     init_db.criar_banco()
     app.run(debug=True, host='0.0.0.0', port=5000)
-    # ROTA PARA RECONSTRUIR O BANCO COM A COLUNA MATRICULA
-@app.route('/reconstruir-banco-agora-99')
-def reconstruir_banco_agora():
-    import init_db
-    init_db.criar_banco()
-    return "<h1>✅ Banco de dados reconstruído do zero com a coluna 'matricula'!</h1>"
