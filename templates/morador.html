@@ -48,7 +48,6 @@
 
 <script>
 async function carregarDadosMorador() {
-    // 1. Carregar Dados do Perfil
     try {
         const resM = await fetch('/api/morador/meus-dados');
         if (resM.ok) {
@@ -57,7 +56,6 @@ async function carregarDadosMorador() {
         }
     } catch(e) { console.error(e); }
 
-    // 2. Carregar Encomendas do Morador Logado
     const tb = document.getElementById('tb-encomendas');
     try {
         const resE = await fetch('/api/morador/minhas-encomendas');
