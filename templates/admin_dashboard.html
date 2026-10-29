@@ -5,17 +5,16 @@
     <title>Painel Geral - Administrador</title>
     <style>
         body { font-family: Arial, sans-serif; background: #222; color: #fff; padding: 20px; margin: 0; }
-        .container { max-width: 1100px; margin: auto; background: #333; padding: 25px; border-radius: 8px; }
-        .box-assinatura { background: #444; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 5px solid #007bff; }
+        .container { max-width: 1150px; margin: auto; background: #333; padding: 25px; border-radius: 8px; }
+        .box-clientes { background: #444; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 5px solid #28a745; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; color: black; border-radius: 6px; overflow: hidden; }
         th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
         th { background: #d9534f; color: white; }
-        button { padding: 6px 12px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; margin-right: 4px; }
+        button { padding: 6px 10px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; margin-right: 2px; }
         .btn-del { background: #dc3545; color: white; }
         .btn-edit { background: #ffc107; color: black; }
-        .btn-add { background: #28a745; color: white; padding: 10px 15px; margin-bottom: 10px; }
+        .btn-add { background: #28a745; color: white; padding: 10px 15px; margin-bottom: 15px; }
         .btn-voltar { background: #6c757d; color: white; margin-bottom: 20px; }
-        .btn-plano { color: white; margin-right: 8px; padding: 10px 15px; }
     </style>
 </head>
 <body>
@@ -23,15 +22,24 @@
     <button class="btn-voltar" onclick="location.href='/logout'">🚪 Sair do Administrador</button>
     <h2>⚙️ Painel Geral de Administração do Condomínio</h2>
 
-    <!-- CONTROLE DE ASSINATURA -->
-    <div class="box-assinatura">
-        <h3>💳 Status da Assinatura do Condomínio</h3>
-        <p>Validade: <b id="validade-assinatura">--/--/----</b> (<span id="dias-restantes">0</span> dias restantes)</p>
-        <div style="display: flex; gap: 10px;">
-            <button class="btn-plano" onclick="liberarPlano('1mes')" style="background: #17a2b8;">➕ 1 Mês (30 Dias)</button>
-            <button class="btn-plano" onclick="liberarPlano('6meses')" style="background: #ffc107; color: black;">➕ 6 Meses (180 Dias)</button>
-            <button class="btn-plano" onclick="liberarPlano('1ano')" style="background: #28a745;">➕ 1 Ano (365 Dias)</button>
-        </div>
+    <!-- GESTÃO DE CLIENTES / CONDOMÍNIOS -->
+    <div class="box-clientes">
+        <h3>🏢 Clientes / Condomínios e Liberação de Prazos</h3>
+        <button class="btn-add" onclick="cadastrarNovoCliente()">+ Novo Cliente (Condomínio)</button>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Condomínio / Cliente</th>
+                    <th>Validade Atual</th>
+                    <th>Dias Restantes</th>
+                    <th>Status</th>
+                    <th>Liberar Prazo Escolhido</th>
+                </tr>
+            </thead>
+            <tbody id="tb-clientes"></tbody>
+        </table>
     </div>
 
     <h3>🛡️ Porteiros Cadastrados</h3>
@@ -66,17 +74,31 @@
 
 <script>
 async function carregarTudo() {
-    // 1. Assinatura
+    // 1. Carregar Clientes / Condomínios
     try {
-        const resA = await fetch('/api/admin/assinatura');
-        if (resA.ok) {
-            const dataA = await resA.json();
-            document.getElementById('validade-assinatura').innerText = dataA.data_expiracao || "N/A";
-            document.getElementById('dias-restantes').innerText = dataA.dias_restantes ?? 0;
+        const resC = await fetch('/api/admin/condominios');
+        if (resC.ok) {
+            const clientes = await resC.json();
+            const tb = document.getElementById('tb-clientes');
+            tb.innerHTML = Array.isArray(clientes) && clientes.length > 0 ? clientes.map(c => `
+                <tr>
+                    <td>${c.id}</td>
+                    <td><b>${c.nome}</b><br><small>CPF/CNPJ: ${c.cnpj_cpf || 'N/I'}</small></td>
+                    <td>${c.data_expiracao_br}</td>
+                    <td><b>${c.dias_restantes} dias</b></td>
+                    <td>${c.ativo ? '<span style="color:green;font-weight:bold;">✅ Ativo</span>' : '<span style="color:red;font-weight:bold;">❌ Expirado</span>'}</td>
+                    <td>
+                        <button onclick="liberarPrazo(${c.id}, 30)" style="background:#17a2b8;color:white;">+30 Dias</button>
+                        <button onclick="liberarPrazo(${c.id}, 180)" style="background:#ffc107;color:black;">+180 Dias</button>
+                        <button onclick="liberarPrazo(${c.id}, 365)" style="background:#28a745;color:white;">+1 Ano</button>
+                        <button onclick="liberarPrazoCustom(${c.id})" style="background:#6c757d;color:white;">Digitar Dias...</button>
+                    </td>
+                </tr>
+            `).join('') : '<tr><td colspan="6" style="text-align:center;">Nenhum cliente cadastrado</td></tr>';
         }
-    } catch (e) { console.error("Erro assinatura:", e); }
+    } catch(e) { console.error("Erro clientes:", e); }
 
-    // 2. Porteiros
+    // 2. Carregar Porteiros
     try {
         const resP = await fetch('/api/admin/porteiros');
         if (resP.ok) {
@@ -92,9 +114,9 @@ async function carregarTudo() {
                 </tr>
             `).join('') : '<tr><td colspan="4" style="text-align:center;">Nenhum porteiro cadastrado</td></tr>';
         }
-    } catch (e) { console.error("Erro porteiros:", e); }
+    } catch(e) { console.error("Erro porteiros:", e); }
 
-    // 3. Moradores
+    // 3. Carregar Moradores
     try {
         const resM = await fetch('/api/admin/moradores');
         if (resM.ok) {
@@ -110,9 +132,9 @@ async function carregarTudo() {
                 </tr>
             `).join('') : '<tr><td colspan="6" style="text-align:center;">Nenhum morador cadastrado</td></tr>';
         }
-    } catch (e) { console.error("Erro moradores:", e); }
+    } catch(e) { console.error("Erro moradores:", e); }
 
-    // 4. Encomendas
+    // 4. Carregar Encomendas
     try {
         const resE = await fetch('/api/encomendas/busca');
         if (resE.ok) {
@@ -128,12 +150,50 @@ async function carregarTudo() {
                 </tr>
             `).join('') : '<tr><td colspan="5" style="text-align:center;">Nenhuma encomenda registrada</td></tr>';
         }
-    } catch (e) { console.error("Erro encomendas:", e); }
+    } catch(e) { console.error("Erro encomendas:", e); }
 }
 
-async function editarPorteiro(id, nomeAtual, matriculaAtual) {
-    const nome = prompt("Novo Nome do Porteiro:", nomeAtual);
-    const matricula = prompt("Nova Matrícula:", matriculaAtual);
+async function cadastrarNovoCliente() {
+    const nome = prompt("Nome do Condomínio / Cliente:");
+    if (!nome) return;
+    const cnpj_cpf = prompt("CNPJ ou CPF do Cliente:");
+    const dias = prompt("Dias iniciais de acesso (ex: 30, 90, 365):", "30");
+
+    if (nome && dias) {
+        const res = await fetch('/api/admin/condominios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, cnpj_cpf, dias: parseInt(dias) })
+        });
+        const json = await res.json();
+        alert(json.mensagem || json.erro);
+        carregarTudo();
+    }
+}
+
+async function liberarPrazo(id, dias) {
+    if (confirm(`Confirma a liberação de mais ${dias} dias de acesso para este cliente?`)) {
+        const res = await fetch(`/api/admin/condominios/${id}/renovar`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dias })
+        });
+        const json = await res.json();
+        alert(json.mensagem);
+        carregarTudo();
+    }
+}
+
+async function liberarPrazoCustom(id) {
+    const dias = prompt("Digite a quantidade exata de dias para liberar ao cliente (ex: 15, 45, 90, 500):");
+    if (dias && !isNaN(dias)) {
+        liberarPrazo(id, parseInt(dias));
+    }
+}
+
+async function editarPorteiro(id, n, m) {
+    const nome = prompt("Nome do Porteiro:", n);
+    const matricula = prompt("Matrícula:", m);
     if (nome && matricula) {
         await fetch(`/api/admin/porteiros/${id}`, {
             method: 'PUT',
@@ -171,17 +231,6 @@ async function editarEncomenda(id, emp, st) {
         });
         carregarTudo();
     }
-}
-
-async function liberarPlano(plano) {
-    const res = await fetch('/api/admin/assinatura', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plano })
-    });
-    const json = await res.json();
-    alert(json.mensagem);
-    carregarTudo();
 }
 
 async function delPorteiro(id) { if (confirm("Remover porteiro?")) { await fetch(`/api/admin/porteiros/${id}`, { method: 'DELETE' }); carregarTudo(); } }
