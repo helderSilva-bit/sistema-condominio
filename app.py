@@ -1,3 +1,4 @@
+Python
 import os
 import re
 import sqlite3
@@ -106,7 +107,7 @@ def aplicar_headers_seguranca(response):
 def imagem_upload(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# PÁGINAS DO SISTEMA
+# ROTAS DAS PÁGINAS DO SISTEMA
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -162,7 +163,7 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# LOGINS
+# APIS DE AUTENTICAÇÃO (LOGINS)
 @app.route('/api/admin/login', methods=['POST'])
 def login_admin():
     dados = request.json or {}
@@ -227,7 +228,7 @@ def login_morador():
 
     return jsonify({"sucesso": True, "morador": morador_dict}), 200
 
-# GESTÃO DE CONDOMÍNIOS (GET LIBERADO E CRIAÇÃO AUTOMÁTICA DE PADRÃO SE VAZIO)
+# GESTÃO DE CONDOMÍNIOS (CLIENTES)
 @app.route('/api/admin/condominios', methods=['GET', 'POST'])
 def gerenciar_condominios_admin():
     conexao = conectar_banco()
@@ -237,6 +238,7 @@ def gerenciar_condominios_admin():
         cursor.execute('SELECT * FROM condominios ORDER BY id DESC')
         rows = cursor.fetchall()
 
+        # Cria automaticamente um condomínio padrão se o banco estiver limpo
         if not rows:
             exp_inicial = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
             cursor.execute('''
@@ -319,7 +321,7 @@ def renovar_prazo_cliente(id):
 
     return jsonify({"mensagem": f"Prazo estendido até {datetime.strptime(nova_expiracao, '%Y-%m-%d').strftime('%d/%m/%Y')}!"}), 200
 
-# CADASTRO DE PORTEIRO
+# GESTÃO DE PORTEIROS
 @app.route('/api/porteiro/cadastrar', methods=['POST'])
 def cadastrar_porteiro():
     if not session.get('admin_logado'): 
@@ -356,7 +358,34 @@ def cadastrar_porteiro():
     finally:
         conexao.close()
 
-# CADASTRO DE MORADOR
+@app.route('/api/admin/porteiros', methods=['GET'])
+def listar_porteiros_admin():
+    if not session.get('admin_logado'): return jsonify({"erro": "Negado"}), 403
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+    cursor.execute('SELECT p.id, p.nome, p.matricula, c.nome as condominio_nome FROM porteiros p LEFT JOIN condominios c ON p.condominio_id = c.id')
+    lista = [dict(row) for row in cursor.fetchall()]
+    conexao.close()
+    return jsonify(lista), 200
+
+@app.route('/api/admin/porteiros/<int:id>', methods=['DELETE', 'PUT'])
+def gerenciar_porteiro_admin(id):
+    if not session.get('admin_logado'): return jsonify({"erro": "Negado"}), 403
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+    if request.method == 'DELETE':
+        cursor.execute('DELETE FROM porteiros WHERE id = ?', (id,))
+        conexao.commit()
+        conexao.close()
+        return jsonify({"mensagem": "Porteiro removido!"}), 200
+    if request.method == 'PUT':
+        dados = request.json or {}
+        cursor.execute('UPDATE porteiros SET nome=?, matricula=? WHERE id=?', (dados.get('nome'), dados.get('matricula'), id))
+        conexao.commit()
+        conexao.close()
+        return jsonify({"mensagem": "Porteiro atualizado!"}), 200
+
+# GESTÃO DE MORADORES
 @app.route('/api/moradores/cadastrar', methods=['POST'])
 def cadastrar_morador():
     dados = request.json or {}
@@ -392,32 +421,43 @@ def cadastrar_morador():
     finally:
         conexao.close()
 
-@app.route('/api/admin/porteiros', methods=['GET'])
-def listar_porteiros_admin():
-    if not session.get('admin_logado'): return jsonify({"erro": "Negado"}), 403
-    conexao = conectar_banco()
-    cursor = conexao.cursor()
-    cursor.execute('SELECT p.id, p.nome, p.matricula, c.nome as condominio_nome FROM porteiros p LEFT JOIN condominios c ON p.condominio_id = c.id')
-    lista = [dict(row) for row in cursor.fetchall()]
-    conexao.close()
-    return jsonify(lista), 200
+@app.route('/api/morador/meus-dados', methods=['GET', 'PUT'])
+def gerenciar_proprio_cadastro():
+    morador_id = session.get('morador_id')
+    if not morador_id:
+        return jsonify({"erro": "Sessão inválida"}), 401
 
-@app.route('/api/admin/porteiros/<int:id>', methods=['DELETE', 'PUT'])
-def gerenciar_porteiro_admin(id):
-    if not session.get('admin_logado'): return jsonify({"erro": "Negado"}), 403
     conexao = conectar_banco()
     cursor = conexao.cursor()
-    if request.method == 'DELETE':
-        cursor.execute('DELETE FROM porteiros WHERE id = ?', (id,))
-        conexao.commit()
+
+    if request.method == 'GET':
+        cursor.execute('SELECT id, nome, celular, cpf, bloco, apartamento FROM moradores WHERE id = ?', (morador_id,))
+        m = cursor.fetchone()
         conexao.close()
-        return jsonify({"mensagem": "Porteiro removido!"}), 200
+        return jsonify(dict(m)) if m else (jsonify({"erro": "Não encontrado"}), 404)
+
     if request.method == 'PUT':
         dados = request.json or {}
-        cursor.execute('UPDATE porteiros SET nome=?, matricula=? WHERE id=?', (dados.get('nome'), dados.get('matricula'), id))
-        conexao.commit()
-        conexao.close()
-        return jsonify({"mensagem": "Porteiro atualizado!"}), 200
+        nome = dados.get('nome')
+        celular = dados.get('celular')
+        cpf_limpo = apenas_numeros(dados.get('cpf', ''))
+        senha = dados.get('senha')
+
+        if not validar_cpf(cpf_limpo):
+            conexao.close()
+            return jsonify({"erro": "CPF inválido!"}), 400
+
+        try:
+            if senha:
+                cursor.execute('UPDATE moradores SET nome=?, celular=?, cpf=?, senha=? WHERE id=?', (nome, celular, cpf_limpo, senha, morador_id))
+            else:
+                cursor.execute('UPDATE moradores SET nome=?, celular=?, cpf=? WHERE id=?', (nome, celular, cpf_limpo, morador_id))
+            conexao.commit()
+            return jsonify({"mensagem": "Dados atualizados com sucesso!"}), 200
+        except sqlite3.IntegrityError:
+            return jsonify({"erro": "CPF já cadastrado por outro morador!"}), 400
+        finally:
+            conexao.close()
 
 @app.route('/api/admin/moradores', methods=['GET'])
 def listar_moradores_admin():
@@ -456,6 +496,7 @@ def buscar_moradores_unidade(bloco, apartamento):
     conexao.close()
     return jsonify(moradores), 200
 
+# GESTÃO DE ENCOMENDAS
 @app.route('/api/encomendas', methods=['POST'])
 def registrar_encomenda():
     if not session.get('porteiro_logado') and not session.get('admin_logado'): 
@@ -527,6 +568,26 @@ def buscar_encomendas_portaria():
     conexao.close()
     return jsonify(encomendas), 200
 
+# ROTA PARA EXIBIR ENCOMENDAS NA PÁGINA DO MORADOR
+@app.route('/api/morador/minhas-encomendas', methods=['GET'])
+def buscar_minhas_encomendas():
+    morador_id = session.get('morador_id')
+    if not morador_id:
+        return jsonify({"erro": "Sessão inválida"}), 401
+
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+    cursor.execute('''
+        SELECT e.* 
+        FROM encomendas e
+        WHERE e.morador_id = ?
+        ORDER BY e.id DESC
+    ''', (morador_id,))
+    
+    encomendas = [dict(row) for row in cursor.fetchall()]
+    conexao.close()
+    return jsonify(encomendas), 200
+
 @app.route('/api/encomendas/<int:id_encomenda>/retirar', methods=['PUT'])
 def dar_baixa_encomenda(id_encomenda):
     dados = request.json or {}
@@ -539,7 +600,24 @@ def dar_baixa_encomenda(id_encomenda):
     conexao.close()
     return jsonify({"mensagem": "Entrega confirmada!"}), 200
 
-# ROTA DE MUTAÇÃO PARA RECONSTRUIR TABELAS
+@app.route('/api/admin/encomendas/<int:id>', methods=['DELETE', 'PUT'])
+def gerenciar_encomenda_admin(id):
+    if not session.get('admin_logado'): return jsonify({"erro": "Negado"}), 403
+    conexao = conectar_banco()
+    cursor = conexao.cursor()
+    if request.method == 'DELETE':
+        cursor.execute('DELETE FROM encomendas WHERE id = ?', (id,))
+        conexao.commit()
+        conexao.close()
+        return jsonify({"mensagem": "Encomenda excluída!"}), 200
+    if request.method == 'PUT':
+        dados = request.json or {}
+        cursor.execute('UPDATE encomendas SET empresa_entrega=?, status=? WHERE id=?', (dados.get('empresa_entrega'), dados.get('status'), id))
+        conexao.commit()
+        conexao.close()
+        return jsonify({"mensagem": "Encomenda atualizada!"}), 200
+
+# ROTA DE MUTAÇÃO PARA RECONSTRUIR TABELAS ZERADAS
 @app.route('/reconstruir-banco-agora-99')
 def reconstruir_banco_agora():
     init_db.criar_banco()

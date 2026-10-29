@@ -2,45 +2,90 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Painel do Morador</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minhas Encomendas - Condomínio</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #e9ecef; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .card { background: white; padding: 20px; border-radius: 10px; width: 100%; max-width: 500px; }
-        .item { border: 1px solid #ddd; padding: 12px; margin-top: 10px; border-radius: 8px; }
-        .img-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 6px; margin-top: 10px; }
+        body { font-family: Arial, sans-serif; background: #f4f6f9; padding: 20px; margin: 0; }
+        .card { max-width: 800px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn-top { padding: 8px 15px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; margin-right: 10px; text-decoration: none; display: inline-block; }
+        .btn-sair { background: #dc3545; color: white; }
+        .btn-edit { background: #007bff; color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #28a745; color: white; }
+        .status-pendente { color: #d9534f; font-weight: bold; }
+        .status-entregue { color: #28a745; font-weight: bold; }
     </style>
 </head>
 <body>
 <div class="card">
-    <h2 id="boasVindas"></h2>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 id="boas-vindas">Olá, Morador!</h2>
+        <div>
+            <a href="/meu-cadastro" class="btn-top btn-edit">✏️ Meu Cadastro</a>
+            <button class="btn-top btn-sair" onclick="location.href='/logout'">🚪 Sair</button>
+        </div>
+    </div>
+
     <h3>📦 Suas Correspondências</h3>
-    <div id="lista"></div>
-    <button onclick="location.href='/'" style="margin-top:20px;">Sair</button>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Protocolo</th>
+                <th>Tipo</th>
+                <th>Transportadora</th>
+                <th>Data Recebimento</th>
+                <th>Status</th>
+                <th>Foto</th>
+            </tr>
+        </thead>
+        <tbody id="tb-encomendas">
+            <tr><td colspan="6" style="text-align:center;">Carregando encomendas...</td></tr>
+        </tbody>
+    </table>
 </div>
 
 <script>
-    const data = JSON.parse(sessionStorage.getItem('moradorData'));
-    if (!data) {
-        window.location.href = '/login-morador';
-    } else {
-        document.getElementById('boasVindas').innerText = `Olá, ${data.morador.nome} (Apto ${data.morador.apartamento})`;
-        const div = document.getElementById('lista');
-
-        if (data.encomendas.length === 0) {
-            div.innerHTML = '<p>Nenhuma encomenda pendente ou registrada.</p>';
-        } else {
-            data.encomendas.forEach(e => {
-                div.innerHTML += `
-                    <div class="item">
-                        <b>Protocolo:</b> #${e.protocolo_diario} | <b>Status:</b> ${e.status}<br>
-                        <b>Tipo:</b> ${e.tipo_encomenda}<br>
-                        <small>Chegou em: ${e.data_recebimento}</small><br>
-                        ${e.foto_url ? `<img src="${e.foto_url}" class="img-preview">` : ''}
-                    </div>
-                `;
-            });
-        }
+async function carregarDadosMorador() {
+    // 1. Carregar Dados do Perfil
+    const resM = await fetch('/api/morador/meus-dados');
+    if (resM.ok) {
+        const m = await resM.json();
+        document.getElementById('boas-vindas').innerText = `Olá, ${m.nome} (Apto ${m.apartamento})`;
     }
+
+    // 2. Carregar Encomendas do Morador
+    const resE = await fetch('/api/morador/minhas-encomendas');
+    const tb = document.getElementById('tb-encomendas');
+    
+    if (resE.ok) {
+        const encomendas = await resE.json();
+        if (encomendas.length === 0) {
+            tb.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhuma encomenda recebida até o momento.</td></tr>';
+            return;
+        }
+
+        tb.innerHTML = encomendas.map(e => {
+            let fotoBtn = e.foto_url ? `<a href="${e.foto_url}" target="_blank">📷 Ver Foto</a>` : 'Sem Foto';
+            let statusClasse = e.status === 'Pendente' ? 'status-pendente' : 'status-entregue';
+            return `
+                <tr>
+                    <td>#${e.protocolo_anual}</td>
+                    <td>${e.tipo_encomenda}</td>
+                    <td>${e.empresa_entrega}</td>
+                    <td>${e.data_recebimento}</td>
+                    <td class="${statusClasse}">${e.status}</td>
+                    <td>${fotoBtn}</td>
+                </tr>
+            `;
+        }).join('');
+    } else {
+        tb.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Erro ao carregar correspondências.</td></tr>';
+    }
+}
+
+carregarDadosMorador();
 </script>
 </body>
 </html>
