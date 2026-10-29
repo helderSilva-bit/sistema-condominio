@@ -1,13 +1,17 @@
-Python
 import sqlite3
 
 def criar_banco():
     conexao = sqlite3.connect('condominio.db')
     cursor = conexao.cursor()
 
+    # Recria as tabelas para garantir a nova estrutura com colunas de empresa e porteiro
+    cursor.execute('DROP TABLE IF EXISTS encomendas')
+    cursor.execute('DROP TABLE IF EXISTS moradores')
+    cursor.execute('DROP TABLE IF EXISTS porteiros')
+
     # Tabela de Moradores
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS moradores (
+        CREATE TABLE moradores (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
             celular TEXT NOT NULL,
@@ -20,7 +24,7 @@ def criar_banco():
 
     # Tabela de Porteiros
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS porteiros (
+        CREATE TABLE porteiros (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
             cpf TEXT UNIQUE NOT NULL,
@@ -30,7 +34,7 @@ def criar_banco():
 
     # Tabela de Encomendas (Com Empresa e Porteiro Responsavel)
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS encomendas (
+        CREATE TABLE encomendas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             protocolo_anual TEXT UNIQUE NOT NULL,
             bloco INTEGER NOT NULL,
@@ -55,4 +59,3 @@ def criar_banco():
 
 if __name__ == '__main__':
     criar_banco()
-2. Ficheiro app.py
