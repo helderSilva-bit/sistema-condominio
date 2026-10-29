@@ -15,14 +15,17 @@
 <div class="card">
     <button class="btn-voltar" onclick="location.href='/'">🏠 Voltar ao Início</button>
     <h2>⚙️ Painel do Administrador</h2>
-    <p>Acesso exclusivo para cadastrar a equipe de portaria.</p>
-    <input type="text" id="usuario" placeholder="Usuário Admin (ex: admin)">
-    <input type="password" id="senha" placeholder="Senha Admin">
-    <button class="btn-login" onclick="loginAdmin()">Entrar como Admin</button>
+    <p>Acesso exclusivo para gerenciar o condomínio.</p>
+    <form autocomplete="off" onsubmit="loginAdmin(event)">
+        <input type="text" id="usuario" placeholder="Usuário Admin (ex: admin)" autocomplete="off" required>
+        <input type="password" id="senha" placeholder="Senha Admin" autocomplete="new-password" required>
+        <button type="submit" class="btn-login">Entrar como Admin</button>
+    </form>
 </div>
 
 <script>
-async function loginAdmin() {
+async function loginAdmin(e) {
+    e.preventDefault();
     const usuario = document.getElementById('usuario').value;
     const senha = document.getElementById('senha').value;
 
@@ -34,7 +37,8 @@ async function loginAdmin() {
 
     const json = await res.json();
     if (res.ok) {
-        window.location.href = '/cadastro-porteiro';
+        // Redireciona para o Dashboard Geral
+        window.location.href = '/admin-dashboard';
     } else {
         alert("⚠️ " + json.erro);
     }

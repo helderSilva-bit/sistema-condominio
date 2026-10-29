@@ -121,7 +121,7 @@ def pagina_portaria():
         return redirect(url_for('login_porteiro_page'))
     if not verificar_assinatura_ativa():
         session.clear()
-        return "<h1>⚠️ A assinatura deste condomínio está expirada. Entre em contacto com o Administrador para renovar!</h1>", 403
+        return "<h1>⚠️ A assinatura do sistema está expirada. Entre em contacto com a administração!</h1>", 403
     return render_template('portaria.html')
 
 @app.route('/morador')
@@ -135,7 +135,7 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# LOGINS
+# APIS DE LOGINS
 @app.route('/api/admin/login', methods=['POST'])
 def login_admin():
     dados = request.json
@@ -143,7 +143,7 @@ def login_admin():
         session.clear()
         session['admin_logado'] = True
         return jsonify({"sucesso": True}), 200
-    return jsonify({"erro": "Usuário ou senha inválidos!"}), 401
+    return jsonify({"erro": "Usuário ou senha de Administrador inválidos!"}), 401
 
 @app.route('/api/porteiro/login', methods=['POST'])
 def login_porteiro():
@@ -190,7 +190,7 @@ def login_morador():
 
     return jsonify({"sucesso": True, "morador": morador_dict}), 200
 
-# API DE GERENCIAMENTO DE ASSINATURA (EXCLUSIVO ADMIN)
+# GERENCIAMENTO DE ASSINATURAS
 @app.route('/api/admin/assinatura', methods=['GET', 'POST'])
 def gerenciar_assinatura():
     if not session.get('admin_logado'):
@@ -218,7 +218,7 @@ def gerenciar_assinatura():
 
     if request.method == 'POST':
         dados = request.json
-        plano = dados.get('plano') # '1mes', '6meses', '1ano'
+        plano = dados.get('plano')
         
         dias_add = 30
         if plano == '6meses':
@@ -244,42 +244,7 @@ def gerenciar_assinatura():
 
         return jsonify({"mensagem": f"Plano liberado com sucesso! Nova validade: {datetime.strptime(nova_expiracao, '%Y-%m-%d').strftime('%d/%m/%Y')}"}), 200
 
-# GESTÃO DO PRÓPRIO MORADOR
-@app.route('/api/morador/meus-dados', methods=['GET', 'PUT'])
-def gerenciar_proprio_cadastro():
-    morador_id = session.get('morador_id')
-    if not morador_id:
-        return jsonify({"erro": "Sessão inválida"}), 401
-
-    conexao = conectar_banco()
-    cursor = conexao.cursor()
-
-    if request.method == 'GET':
-        cursor.execute('SELECT id, nome, celular, cpf, bloco, apartamento FROM moradores WHERE id = ?', (morador_id,))
-        m = cursor.fetchone()
-        conexao.close()
-        return jsonify(dict(m)), 200
-
-    if request.method == 'PUT':
-        dados = request.json
-        nome = dados.get('nome')
-        celular = dados.get('celular')
-        cpf = dados.get('cpf', '').strip()
-        senha = dados.get('senha')
-
-        try:
-            if senha:
-                cursor.execute('UPDATE moradores SET nome=?, celular=?, cpf=?, senha=? WHERE id=?', (nome, celular, cpf, senha, morador_id))
-            else:
-                cursor.execute('UPDATE moradores SET nome=?, celular=?, cpf=? WHERE id=?', (nome, celular, cpf, morador_id))
-            conexao.commit()
-            return jsonify({"mensagem": "Dados atualizados com sucesso!"}), 200
-        except sqlite3.IntegrityError:
-            return jsonify({"erro": "CPF já cadastrado!"}), 400
-        finally:
-            conexao.close()
-
-# GERENCIAMENTO ADMIN (PORTEIROS, MORADORES E ENCOMENDAS)
+# OPERAÇÕES DO PAINEL ADMIN
 @app.route('/api/admin/porteiros', methods=['GET'])
 def listar_porteiros_admin():
     if not session.get('admin_logado'): return jsonify({"erro": "Negado"}), 403
@@ -330,7 +295,7 @@ def excluir_encomenda_admin(id):
     conexao.close()
     return jsonify({"mensagem": "Encomenda excluída!"}), 200
 
-# CADASTRO E ENCOMENDAS
+# CADASTROS E RECEPÇÃO
 @app.route('/api/porteiro/cadastrar', methods=['POST'])
 def cadastrar_porteiro():
     if not session.get('admin_logado'):
@@ -464,11 +429,11 @@ def dar_baixa_encomenda(id_encomenda):
     conexao.close()
     return jsonify({"mensagem": "Entrega confirmada!"}), 200
 
-# ROTA PARA RECONSTRUIR O BANCO SE PRECISAR
+# ROTA DE RECONSTRUÇÃO DO BANCO DE DADOS
 @app.route('/reconstruir-banco-agora-99')
 def reconstruir_banco_agora():
     init_db.criar_banco()
-    return "<h1>✅ Base de dados do Render totalmente limpa e recriada com tabela de assinaturas!</h1>"
+    return "<h1>✅ Base de dados limpa e pronta para uso com o Painel Admin!</h1>"
 
 if __name__ == '__main__':
     init_db.criar_banco()
