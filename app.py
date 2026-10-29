@@ -579,7 +579,7 @@ def buscar_encomendas_portaria():
     conexao.close()
     return jsonify(encomendas), 200
 
-# ROTA PARA RETORNAR CORRESPONDÊNCIAS DO MORADOR LOGADO COM DETALHES DE RETIRADA
+# ROTA PARA EXIBIR TODAS AS CORRESPONDÊNCIAS DA UNIDADE (BLOCO E APARTAMENTO)
 @app.route('/api/morador/minhas-encomendas', methods=['GET'])
 def buscar_minhas_encomendas():
     morador_id = session.get('morador_id')
@@ -588,14 +588,29 @@ def buscar_minhas_encomendas():
 
     conexao = conectar_banco()
     cursor = conexao.cursor()
+
+    # 1. Identifica o bloco e apartamento do morador logado
+    cursor.execute('SELECT bloco, apartamento FROM moradores WHERE id = ?', (morador_id,))
+    morador = cursor.fetchone()
+
+    if not morador:
+        conexao.close()
+        return jsonify({"erro": "Morador não encontrado"}), 404
+
+    bloco = morador['bloco']
+    apartamento = morador['apartamento']
+
+    # 2. Busca TODAS as encomendas do mesmo bloco e apartamento
     cursor.execute('''
         SELECT e.id, e.protocolo_anual, e.tipo_encomenda, e.empresa_entrega, 
-               e.data_recebimento, e.status, e.retirado_por, e.data_retirada, e.foto_url
+               e.data_recebimento, e.status, e.retirado_por, e.data_retirada, e.foto_url,
+               m.nome as nome_destinatario
         FROM encomendas e
-        WHERE e.morador_id = ?
+        LEFT JOIN moradores m ON e.morador_id = m.id
+        WHERE e.bloco = ? AND e.apartamento = ?
         ORDER BY e.id DESC
-    ''', (morador_id,))
-    
+    ''', (bloco, apartamento))
+
     encomendas = [dict(row) for row in cursor.fetchall()]
     conexao.close()
     return jsonify(encomendas), 200

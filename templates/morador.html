@@ -6,7 +6,7 @@
     <title>Minhas Encomendas - Condomínio</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f6f9; padding: 20px; margin: 0; }
-        .card { max-width: 850px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .card { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         .btn-top { padding: 8px 15px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; margin-right: 10px; text-decoration: none; display: inline-block; }
         .btn-sair { background: #dc3545; color: white; }
         .btn-edit { background: #007bff; color: white; }
@@ -15,6 +15,7 @@
         th { background: #28a745; color: white; }
         .status-pendente { color: #d9534f; font-weight: bold; }
         .status-entregue { color: #28a745; font-weight: bold; }
+        .info-retirada { font-size: 12px; color: #555; }
     </style>
 </head>
 <body>
@@ -27,21 +28,23 @@
         </div>
     </div>
 
-    <h3>📦 Suas Correspondências</h3>
+    <h3>📦 Correspondências da Unidade</h3>
 
     <table>
         <thead>
             <tr>
                 <th>Protocolo</th>
+                <th>Destinatário</th>
                 <th>Tipo</th>
                 <th>Transportadora</th>
                 <th>Data Recebimento</th>
                 <th>Status</th>
+                <th>Entregue / Retirado por</th>
                 <th>Foto</th>
             </tr>
         </thead>
         <tbody id="tb-encomendas">
-            <tr><td colspan="6" style="text-align:center;">A carregar encomendas...</td></tr>
+            <tr><td colspan="8" style="text-align:center;">Carregando encomendas...</td></tr>
         </tbody>
     </table>
 </div>
@@ -53,40 +56,47 @@ document.addEventListener("DOMContentLoaded", async function() {
         const resM = await fetch('/api/morador/meus-dados');
         if (resM.ok) {
             const m = await resM.json();
-            document.getElementById('boas-vindas').innerText = `Olá, ${m.nome} (Apto ${m.apartamento})`;
+            document.getElementById('boas-vindas').innerText = `Olá, ${m.nome} (Bl ${m.bloco} - Apto ${m.apartamento})`;
         }
     } catch(e) { console.error(e); }
 
-    // 2. Encomendas
+    // 2. Encomendas do Apartamento
     const tb = document.getElementById('tb-encomendas');
     try {
         const resE = await fetch('/api/morador/minhas-encomendas');
         if (resE.ok) {
             const encomendas = await resE.json();
             if (!Array.isArray(encomendas) || encomendas.length === 0) {
-                tb.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhuma encomenda recebida até ao momento.</td></tr>';
+                tb.innerHTML = '<tr><td colspan="8" style="text-align:center;">Nenhuma encomenda registrada para o seu apartamento até o momento.</td></tr>';
                 return;
             }
 
             tb.innerHTML = encomendas.map(e => {
                 let fotoBtn = e.foto_url ? `<a href="${e.foto_url}" target="_blank">📷 Ver Foto</a>` : 'Sem Foto';
                 let statusClasse = e.status === 'Pendente' ? 'status-pendente' : 'status-entregue';
+                
+                let retiradoInfo = e.status === 'Entregue' 
+                    ? `<b>${e.retirado_por || 'Próprio Morador'}</b><br><span class="info-retirada">${e.data_retirada || ''}</span>`
+                    : '<span style="color:#888;">Aguardando retirada</span>';
+
                 return `
                     <tr>
                         <td>#${e.protocolo_anual}</td>
+                        <td><b>${e.nome_destinatario || 'Geral/Unidade'}</b></td>
                         <td>${e.tipo_encomenda}</td>
                         <td>${e.empresa_entrega}</td>
                         <td>${e.data_recebimento}</td>
                         <td class="${statusClasse}">${e.status}</td>
+                        <td>${retiradoInfo}</td>
                         <td>${fotoBtn}</td>
                     </tr>
                 `;
             }).join('');
         } else {
-            tb.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Erro ao carregar correspondências.</td></tr>';
+            tb.innerHTML = '<tr><td colspan="8" style="text-align:center; color:red;">Erro ao carregar correspondências.</td></tr>';
         }
     } catch(e) {
-        tb.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Erro de conexão.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="8" style="text-align:center; color:red;">Erro de conexão.</td></tr>';
     }
 });
 </script>
