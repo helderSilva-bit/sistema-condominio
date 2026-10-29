@@ -1,9 +1,8 @@
-Python
 import os
 import re
 import sqlite3
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session
+from flask import Flask, request, jsonify, render_template, send_from_directory, redirect, url_for, session, make_response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import init_db
@@ -11,6 +10,11 @@ import init_db
 app = Flask(__name__)
 app.secret_key = 'chave_secreta_segura_condominio'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=5)
+
+# Configurações para desativar cache e forçar recarregamento dos templates
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.jinja_env.auto_reload = True
+
 CORS(app)
 
 DATABASE = 'condominio.db'
@@ -156,14 +160,19 @@ def pagina_portaria():
 def pagina_morador():
     if not session.get('morador_id'):
         return redirect(url_for('login_morador_page'))
-    return render_template('morador.html')
+    
+    response = make_response(render_template('morador.html'))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# APIS DE AUTENTICAÇÃO (LOGINS)
+# LOGINS E AUTENTICAÇÃO
 @app.route('/api/admin/login', methods=['POST'])
 def login_admin():
     dados = request.json or {}
@@ -238,7 +247,6 @@ def gerenciar_condominios_admin():
         cursor.execute('SELECT * FROM condominios ORDER BY id DESC')
         rows = cursor.fetchall()
 
-        # Cria automaticamente um condomínio padrão se o banco estiver limpo
         if not rows:
             exp_inicial = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
             cursor.execute('''
@@ -277,10 +285,10 @@ def gerenciar_condominios_admin():
 
     if doc and len(doc) == 11 and not validar_cpf(doc):
         conexao.close()
-        return jsonify({"erro": "CPF do cliente/responsável inválido!"}), 400
+        return jsonify({"erro": "CPF inválido!"}), 400
     elif doc and len(doc) == 14 and not validar_cnpj(doc):
         conexao.close()
-        return jsonify({"erro": "CNPJ do condomínio inválido!"}), 400
+        return jsonify({"erro": "CNPJ inválido!"}), 400
 
     nova_expiracao = (datetime.now() + timedelta(days=dias)).strftime("%Y-%m-%d")
 
@@ -385,7 +393,7 @@ def gerenciar_porteiro_admin(id):
         conexao.close()
         return jsonify({"mensagem": "Porteiro atualizado!"}), 200
 
-# GESTÃO DE MORADORES
+# GESTÃO DE MORADORES E MEU CADASTRO
 @app.route('/api/moradores/cadastrar', methods=['POST'])
 def cadastrar_morador():
     dados = request.json or {}
@@ -568,7 +576,7 @@ def buscar_encomendas_portaria():
     conexao.close()
     return jsonify(encomendas), 200
 
-# ROTA PARA EXIBIR ENCOMENDAS NA PÁGINA DO MORADOR
+# ROTA EXCLUSIVA PARA RETORNAR CORRESPONDÊNCIAS DO MORADOR LOGADO
 @app.route('/api/morador/minhas-encomendas', methods=['GET'])
 def buscar_minhas_encomendas():
     morador_id = session.get('morador_id')

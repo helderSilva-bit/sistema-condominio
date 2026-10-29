@@ -41,13 +41,14 @@
             </tr>
         </thead>
         <tbody id="tb-encomendas">
-            <tr><td colspan="6" style="text-align:center;">Carregando encomendas...</td></tr>
+            <tr><td colspan="6" style="text-align:center;">A carregar encomendas...</td></tr>
         </tbody>
     </table>
 </div>
 
 <script>
-async function carregarDadosMorador() {
+document.addEventListener("DOMContentLoaded", async function() {
+    // 1. Perfil
     try {
         const resM = await fetch('/api/morador/meus-dados');
         if (resM.ok) {
@@ -56,13 +57,14 @@ async function carregarDadosMorador() {
         }
     } catch(e) { console.error(e); }
 
+    // 2. Encomendas
     const tb = document.getElementById('tb-encomendas');
     try {
         const resE = await fetch('/api/morador/minhas-encomendas');
         if (resE.ok) {
             const encomendas = await resE.json();
             if (!Array.isArray(encomendas) || encomendas.length === 0) {
-                tb.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhuma encomenda recebida até o momento.</td></tr>';
+                tb.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhuma encomenda recebida até ao momento.</td></tr>';
                 return;
             }
 
@@ -84,11 +86,9 @@ async function carregarDadosMorador() {
             tb.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Erro ao carregar correspondências.</td></tr>';
         }
     } catch(e) {
-        tb.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Erro na conexão com o servidor.</td></tr>';
+        tb.innerHTML = '<tr><td colspan="6" style="text-align:center; color:red;">Erro de conexão.</td></tr>';
     }
-}
-
-carregarDadosMorador();
+});
 </script>
 </body>
 </html>
