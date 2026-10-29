@@ -23,6 +23,7 @@
     <button class="btn-voltar" onclick="location.href='/logout'">🚪 Sair do Administrador</button>
     <h2>⚙️ Painel Geral de Administração do Condomínio</h2>
 
+    <!-- CONTROLE DE ASSINATURA -->
     <div class="box-assinatura">
         <h3>💳 Status da Assinatura do Condomínio</h3>
         <p>Validade: <b id="validade-assinatura">--/--/----</b> (<span id="dias-restantes">0</span> dias restantes)</p>
@@ -65,50 +66,69 @@
 
 <script>
 async function carregarTudo() {
-    // Assinatura
-    const resA = await fetch('/api/admin/assinatura');
-    const dataA = await resA.json();
-    document.getElementById('validade-assinatura').innerText = dataA.data_expiracao;
-    document.getElementById('dias-restantes').innerText = dataA.dias_restantes;
+    // 1. Assinatura
+    try {
+        const resA = await fetch('/api/admin/assinatura');
+        if (resA.ok) {
+            const dataA = await resA.json();
+            document.getElementById('validade-assinatura').innerText = dataA.data_expiracao || "N/A";
+            document.getElementById('dias-restantes').innerText = dataA.dias_restantes ?? 0;
+        }
+    } catch (e) { console.error("Erro assinatura:", e); }
 
-    // Porteiros
-    const resP = await fetch('/api/admin/porteiros');
-    const porteiros = await resP.json();
-    document.getElementById('tb-porteiros').innerHTML = porteiros.map(p => `
-        <tr>
-            <td>${p.id}</td><td>${p.nome}</td><td>${p.matricula}</td>
-            <td>
-                <button class="btn-edit" onclick="editarPorteiro(${p.id}, '${p.nome}', '${p.matricula}')">Editar</button>
-                <button class="btn-del" onclick="delPorteiro(${p.id})">Excluir</button>
-            </td>
-        </tr>
-    `).join('');
+    // 2. Porteiros
+    try {
+        const resP = await fetch('/api/admin/porteiros');
+        if (resP.ok) {
+            const porteiros = await resP.json();
+            const tb = document.getElementById('tb-porteiros');
+            tb.innerHTML = Array.isArray(porteiros) && porteiros.length > 0 ? porteiros.map(p => `
+                <tr>
+                    <td>${p.id}</td><td>${p.nome}</td><td>${p.matricula}</td>
+                    <td>
+                        <button class="btn-edit" onclick="editarPorteiro(${p.id}, '${p.nome}', '${p.matricula}')">Editar</button>
+                        <button class="btn-del" onclick="delPorteiro(${p.id})">Excluir</button>
+                    </td>
+                </tr>
+            `).join('') : '<tr><td colspan="4" style="text-align:center;">Nenhum porteiro cadastrado</td></tr>';
+        }
+    } catch (e) { console.error("Erro porteiros:", e); }
 
-    // Moradores
-    const resM = await fetch('/api/admin/moradores');
-    const moradores = await resM.json();
-    document.getElementById('tb-moradores').innerHTML = moradores.map(m => `
-        <tr>
-            <td>${m.id}</td><td>${m.nome}</td><td>${m.celular}</td><td>${m.cpf}</td><td>Bl ${m.bloco} - Ap ${m.apartamento}</td>
-            <td>
-                <button class="btn-edit" onclick="editarMorador(${m.id}, '${m.nome}', '${m.celular}', '${m.cpf}', ${m.bloco}, ${m.apartamento})">Editar</button>
-                <button class="btn-del" onclick="delMorador(${m.id})">Excluir</button>
-            </td>
-        </tr>
-    `).join('');
+    // 3. Moradores
+    try {
+        const resM = await fetch('/api/admin/moradores');
+        if (resM.ok) {
+            const moradores = await resM.json();
+            const tb = document.getElementById('tb-moradores');
+            tb.innerHTML = Array.isArray(moradores) && moradores.length > 0 ? moradores.map(m => `
+                <tr>
+                    <td>${m.id}</td><td>${m.nome}</td><td>${m.celular}</td><td>${m.cpf}</td><td>Bl ${m.bloco} - Ap ${m.apartamento}</td>
+                    <td>
+                        <button class="btn-edit" onclick="editarMorador(${m.id}, '${m.nome}', '${m.celular}', '${m.cpf}', ${m.bloco}, ${m.apartamento})">Editar</button>
+                        <button class="btn-del" onclick="delMorador(${m.id})">Excluir</button>
+                    </td>
+                </tr>
+            `).join('') : '<tr><td colspan="6" style="text-align:center;">Nenhum morador cadastrado</td></tr>';
+        }
+    } catch (e) { console.error("Erro moradores:", e); }
 
-    // Encomendas
-    const resE = await fetch('/api/encomendas/busca');
-    const encomendas = await resE.json();
-    document.getElementById('tb-encomendas').innerHTML = encomendas.map(e => `
-        <tr>
-            <td>#${e.protocolo_anual}</td><td>Bl ${e.bloco} - Ap ${e.apartamento}</td><td>${e.empresa_entrega}</td><td>${e.status}</td>
-            <td>
-                <button class="btn-edit" onclick="editarEncomenda(${e.id}, '${e.empresa_entrega}', '${e.status}')">Editar</button>
-                <button class="btn-del" onclick="delEncomenda(${e.id})">Excluir</button>
-            </td>
-        </tr>
-    `).join('');
+    // 4. Encomendas
+    try {
+        const resE = await fetch('/api/encomendas/busca');
+        if (resE.ok) {
+            const encomendas = await resE.json();
+            const tb = document.getElementById('tb-encomendas');
+            tb.innerHTML = Array.isArray(encomendas) && encomendas.length > 0 ? encomendas.map(e => `
+                <tr>
+                    <td>#${e.protocolo_anual}</td><td>Bl ${e.bloco} - Ap ${e.apartamento}</td><td>${e.empresa_entrega}</td><td>${e.status}</td>
+                    <td>
+                        <button class="btn-edit" onclick="editarEncomenda(${e.id}, '${e.empresa_entrega}', '${e.status}')">Editar</button>
+                        <button class="btn-del" onclick="delEncomenda(${e.id})">Excluir</button>
+                    </td>
+                </tr>
+            `).join('') : '<tr><td colspan="5" style="text-align:center;">Nenhuma encomenda registrada</td></tr>';
+        }
+    } catch (e) { console.error("Erro encomendas:", e); }
 }
 
 async function editarPorteiro(id, nomeAtual, matriculaAtual) {
@@ -154,11 +174,13 @@ async function editarEncomenda(id, emp, st) {
 }
 
 async function liberarPlano(plano) {
-    await fetch('/api/admin/assinatura', {
+    const res = await fetch('/api/admin/assinatura', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plano })
     });
+    const json = await res.json();
+    alert(json.mensagem);
     carregarTudo();
 }
 
