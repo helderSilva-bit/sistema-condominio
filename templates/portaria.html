@@ -3,86 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel da Portaria - Sistema de Condomínio</title>
+    <title>Portaria - Gestão de Encomendas</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; padding: 20px; margin: 0; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .btn-voltar { background: #6c757d; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
-        .btn-voltar:hover { background: #5a6268; }
-        .form-group { margin-top: 15px; }
-        label { font-weight: bold; display: block; margin-bottom: 5px; color: #333; }
-        input, select, button { padding: 11px; border-radius: 6px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; font-size: 14px; }
-        button.btn-salvar { background: #28a745; color: white; font-weight: bold; border: none; cursor: pointer; margin-top: 20px; font-size: 16px; }
-        button.btn-salvar:hover { background: #218838; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
-        th, td { border: 1px solid #e0e0e0; padding: 12px; text-align: left; }
+        body { font-family: Arial, sans-serif; background: #f4f6f9; padding: 20px; margin: 0; }
+        .card { max-width: 1100px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 25px; }
+        .btn-top { padding: 8px 15px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; background: #dc3545; color: white; float: right; }
+        input, select, button { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 14px; }
+        .btn-entregar { background: #17a2b8; color: white; border: none; cursor: pointer; font-weight: bold; padding: 6px 12px; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         th { background: #007bff; color: white; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .btn-entregar { background: #17a2b8; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .btn-entregar:hover { background: #138496; }
+        .status-pendente { color: #d9534f; font-weight: bold; }
+        .status-entregue { color: #28a745; font-weight: bold; }
+        .info-retirada { font-size: 12px; color: #555; }
     </style>
 </head>
 <body>
-<div class="container">
-    <button class="btn-voltar" onclick="location.href='/logout'">🚪 Sair / Voltar ao Início</button>
-    <h2>📦 Painel de Recepção de Encomendas</h2>
+<div class="card">
+    <button class="btn-top" onclick="location.href='/logout'">🚪 Sair</button>
+    <h2>🛡️ Painel da Portaria</h2>
 
-    <form id="formEnc" onsubmit="salvar(event)">
-        <div style="display: flex; gap: 15px;">
-            <div style="flex: 1;">
-                <label>Bloco:</label>
-                <input type="number" id="bloco" required onchange="carregarMoradores()" placeholder="Ex: 1">
-            </div>
-            <div style="flex: 1;">
-                <label>Apartamento:</label>
-                <input type="number" id="apartamento" required onchange="carregarMoradores()" placeholder="Ex: 101">
-            </div>
-        </div>
+    <h3>📦 Registrar Nova Encomenda</h3>
+    <form id="form-encomenda" onsubmit="registrarEncomenda(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 20px;">
+        <input type="number" id="bloco" placeholder="Bloco" required onchange="carregarMoradores()">
+        <input type="number" id="apartamento" placeholder="Apartamento" required onchange="carregarMoradores()">
+        
+        <select id="morador_id" required>
+            <option value="">Selecione o Morador...</option>
+        </select>
 
-        <div class="form-group">
-            <label>Destinatário (Morador):</label>
-            <select id="morador_id" required>
-                <option value="">Informe primeiro o Bloco e Apartamento...</option>
-            </select>
-        </div>
+        <select id="tipo_encomenda" required>
+            <option value="Caixa/Pacote">Caixa/Pacote</option>
+            <option value="Envelope/Carta">Envelope/Carta</option>
+            <option value="Saco/Sacola">Saco/Sacola</option>
+            <option value="Outros">Outros</option>
+        </select>
 
-        <div class="form-group">
-            <label>Tipo de Encomenda:</label>
-            <select id="tipo" required>
-                <option value="Caixa">Caixa</option>
-                <option value="Envelope">Envelope</option>
-                <option value="Sacola">Sacola</option>
-                <option value="Pacote Pequeno">Pacote Pequeno</option>
-                <option value="Outros">Outros</option>
-            </select>
-        </div>
+        <input type="text" id="empresa_entrega" placeholder="Transportadora (Ex: Amazon, Mercado Livre)" required>
+        <input type="file" id="foto" accept="image/*">
 
-        <div class="form-group">
-            <label>Empresa de Entrega / Transportadora:</label>
-            <select id="empresa" required>
-                <option value="Mercado Livre">Mercado Livre</option>
-                <option value="Correios">Correios</option>
-                <option value="Shopee">Shopee</option>
-                <option value="Amazon">Amazon</option>
-                <option value="Jadlog">Jadlog</option>
-                <option value="Loggi">Loggi</option>
-                <option value="Outros">Outros / Entregador</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label>Foto do Pacote (Opcional):</label>
-            <input type="file" id="foto" accept="image/*">
-        </div>
-
-        <button type="submit" class="btn-salvar">Registrar e Notificar WhatsApp</button>
+        <button type="submit" style="background: #28a745; color: white; font-weight: bold; border: none; cursor: pointer; grid-column: 1 / -1;">Registrar Encomenda</button>
     </form>
+</div>
 
-    <hr style="margin-top: 35px; border: 0; border-top: 1px solid #ddd;">
-
+<div class="card">
     <h3>🔍 Encomendas Registradas</h3>
-    <input type="text" id="busca" placeholder="Pesquisar por morador, bloco, apartamento, protocolo ou transportadora..." onkeyup="pesquisar()">
-    
+    <input type="text" id="busca" placeholder="Pesquisar por morador, bloco, apartamento, protocolo ou transportadora..." onkeyup="buscarEncomendas()" style="width: 100%; box-sizing: border-box; margin-bottom: 15px;">
+
     <table>
         <thead>
             <tr>
@@ -91,134 +58,119 @@
                 <th>Morador</th>
                 <th>Transportadora</th>
                 <th>Recebido Por</th>
-                <th>Data</th>
+                <th>Data Recebimento</th>
                 <th>Status</th>
+                <th>Retirado Por / Data</th>
                 <th>Ações</th>
             </tr>
         </thead>
-        <tbody id="tabela"></tbody>
+        <tbody id="tb-encomendas">
+            <tr><td colspan="9" style="text-align:center;">Carregando encomendas...</td></tr>
+        </tbody>
     </table>
 </div>
 
 <script>
-// Carrega automaticamente os moradores vinculados ao Bloco/Apto digitados
 async function carregarMoradores() {
     const bloco = document.getElementById('bloco').value;
-    const ap = document.getElementById('apartamento').value;
+    const apartamento = document.getElementById('apartamento').value;
     const select = document.getElementById('morador_id');
 
-    if (!bloco || !ap) return;
-
-    const res = await fetch(`/api/moradores/buscar/${bloco}/${ap}`);
-    const moradores = await res.json();
-
-    select.innerHTML = '';
-    if (moradores.length === 0) {
-        select.innerHTML = '<option value="">Nenhum morador cadastrado nesta unidade</option>';
-        return;
+    if (bloco && apartamento) {
+        const res = await fetch(`/api/moradores/buscar/${bloco}/${apartamento}`);
+        const moradores = await res.json();
+        select.innerHTML = '<option value="">Selecione o Morador...</option>';
+        moradores.forEach(m => {
+            select.innerHTML += `<option value="${m.id}">${m.nome}</option>`;
+        });
     }
-
-    moradores.forEach(m => {
-        select.innerHTML += `<option value="${m.id}">${m.nome} (Tel: ${m.celular})</option>`;
-    });
 }
 
-// Salva a encomenda e envia o link com a foto no WhatsApp
-async function salvar(e) {
+async function registrarEncomenda(e) {
     e.preventDefault();
     const formData = new FormData();
     formData.append('bloco', document.getElementById('bloco').value);
     formData.append('apartamento', document.getElementById('apartamento').value);
     formData.append('morador_id', document.getElementById('morador_id').value);
-    formData.append('tipo_encomenda', document.getElementById('tipo').value);
-    formData.append('empresa_entrega', document.getElementById('empresa').value);
+    formData.append('tipo_encomenda', document.getElementById('tipo_encomenda').value);
+    formData.append('empresa_entrega', document.getElementById('empresa_entrega').value);
     
-    if (document.getElementById('foto').files[0]) {
-        formData.append('foto', document.getElementById('foto').files[0]);
+    const fotoFile = document.getElementById('foto').files[0];
+    if (fotoFile) {
+        formData.append('foto', fotoFile);
     }
 
-    const res = await fetch('/api/encomendas', { method: 'POST', body: formData });
+    const res = await fetch('/api/encomendas', {
+        method: 'POST',
+        body: formData
+    });
+
     const json = await res.json();
-
-    if (!res.ok) {
-        alert("⚠️ " + (json.erro || "Erro ao registrar encomenda"));
-        return;
+    if (res.ok) {
+        alert("✅ " + json.mensagem);
+        document.getElementById('form-encomenda').reset();
+        buscarEncomendas();
+    } else {
+        alert("⚠️ " + json.erro);
     }
-
-    alert(json.mensagem);
-
-    if (json.celular_morador) {
-        let num = json.celular_morador.replace(/\D/g, '');
-        if (!num.startsWith('55')) num = '55' + num;
-
-        // Anexa o link direto da foto do pacote (se enviada)
-        let linkFoto = json.foto_url ? `\n📷 *Foto da Encomenda:* https://sistema-condominio-fm3o.onrender.com${json.foto_url}\n` : '';
-
-        const txt = encodeURIComponent(
-            `📦 *Aviso de Encomenda - Portaria*\n\n` +
-            `Olá, *${json.nome_morador}*!\n` +
-            `Chegou uma encomenda para você.\n\n` +
-            `• *Protocolo Anual:* #${json.protocolo}\n` +
-            `• *Transportadora:* ${json.empresa}\n` +
-            `• *Recebido por:* ${json.porteiro_nome}\n` +
-            linkFoto + `\n` +
-            `👉 *Atualize seu cadastro (máx. 4 por apto):*\nhttps://sistema-condominio-fm3o.onrender.com/meu-cadastro\n\n` +
-            `Pode vir retirar na portaria!`
-        );
-
-        const urlWhatsapp = `https://api.whatsapp.com/send?phone=${num}&text=${txt}`;
-        window.open(urlWhatsapp, '_blank');
-    }
-
-    document.getElementById('formEnc').reset();
-    document.getElementById('morador_id').innerHTML = '<option value="">Informe primeiro o Bloco e Apartamento...</option>';
-    pesquisar();
 }
 
-// Pesquisa as encomendas no banco
-async function pesquisar() {
+async function buscarEncomendas() {
     const q = document.getElementById('busca').value;
-    const res = await fetch(`/api/encomendas/busca?q=${q}`);
-    const encomendas = await res.json();
-    const tabela = document.getElementById('tabela');
+    const res = await fetch(`/api/encomendas/busca?q=${encodeURIComponent(q)}`);
+    const tb = document.getElementById('tb-encomendas');
 
-    tabela.innerHTML = '';
-    encomendas.forEach(enc => {
-        let fotoLink = enc.foto_url ? `<br><a href="${enc.foto_url}" target="_blank">📷 Ver Foto</a>` : '';
-        tabela.innerHTML += `
-            <tr>
-                <td>#${enc.protocolo_anual}</td>
-                <td>Bl ${enc.bloco} - Ap ${enc.apartamento}</td>
-                <td>${enc.nome_morador || 'N/I'}</td>
-                <td>${enc.empresa_entrega}</td>
-                <td>${enc.porteiro_nome || 'Portaria'}</td>
-                <td>${enc.data_recebimento}</td>
-                <td><b>${enc.status}</b></td>
-                <td>
-                    ${enc.status === 'Pendente' ? `<button class="btn-entregar" onclick="darBaixa(${enc.id})">Entregar</button>` : 'Entregue'}
-                    ${fotoLink}
-                </td>
-            </tr>
-        `;
-    });
+    if (res.ok) {
+        const encomendas = await res.json();
+        if (encomendas.length === 0) {
+            tb.innerHTML = '<tr><td colspan="9" style="text-align:center;">Nenhuma encomenda encontrada.</td></tr>';
+            return;
+        }
+
+        tb.innerHTML = encomendas.map(e => {
+            let fotoBtn = e.foto_url ? `<br><a href="${e.foto_url}" target="_blank">📷 Ver Foto</a>` : '';
+            let statusClasse = e.status === 'Pendente' ? 'status-pendente' : 'status-entregue';
+            
+            let acaoBtn = e.status === 'Pendente' 
+                ? `<button class="btn-entregar" onclick="darBaixa(${e.id})">Entregar</button>${fotoBtn}`
+                : `<span style="color:#28a745; font-weight:bold;">Concluído</span>${fotoBtn}`;
+
+            let infoRetirada = e.status === 'Entregue' 
+                ? `<b>${e.retirado_por || 'Próprio Morador'}</b><br><span class="info-retirada">${e.data_retirada || ''}</span>`
+                : '<span style="color:#888;">Aguardando</span>';
+
+            return `
+                <tr>
+                    <td>#${e.protocolo_anual}</td>
+                    <td>Bl ${e.bloco} - Ap ${e.apartamento}</td>
+                    <td>${e.nome_morador || 'N/I'}</td>
+                    <td>${e.empresa_entrega}</td>
+                    <td>${e.porteiro_nome || 'Portaria'}</td>
+                    <td>${e.data_recebimento}</td>
+                    <td class="${statusClasse}">${e.status}</td>
+                    <td>${infoRetirada}</td>
+                    <td>${acaoBtn}</td>
+                </tr>
+            `;
+        }).join('');
+    }
 }
 
-// Confirma a retirada do pacote
 async function darBaixa(id) {
-    const retirado_por = prompt("Nome da pessoa que está retirando o pacote:");
-    if (!retirado_por) return;
-
-    await fetch(`/api/encomendas/${id}/retirar`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ retirado_por })
-    });
-
-    pesquisar();
+    const retirado_por = prompt("Quem está a retirar a encomenda?", "Próprio Morador");
+    if (retirado_por !== null) {
+        const res = await fetch(`/api/encomendas/${id}/retirar`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ retirado_por: retirado_por.trim() || 'Próprio Morador' })
+        });
+        if (res.ok) {
+            buscarEncomendas();
+        }
+    }
 }
 
-// Carrega as encomendas cadastradas ao abrir a página
-pesquisar();
+buscarEncomendas();
 </script>
 </body>
 </html>

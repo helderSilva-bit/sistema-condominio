@@ -560,7 +560,9 @@ def buscar_encomendas_portaria():
     conexao = conectar_banco()
     cursor = conexao.cursor()
     sql = '''
-        SELECT e.*, m.nome as nome_morador 
+        SELECT e.id, e.protocolo_anual, e.bloco, e.apartamento, e.tipo_encomenda, 
+               e.empresa_entrega, e.porteiro_nome, e.data_recebimento, e.status, 
+               e.retirado_por, e.data_retirada, e.foto_url, m.nome as nome_morador 
         FROM encomendas e
         LEFT JOIN moradores m ON e.morador_id = m.id
         WHERE 1=1
@@ -576,7 +578,7 @@ def buscar_encomendas_portaria():
     conexao.close()
     return jsonify(encomendas), 200
 
-# ROTA EXCLUSIVA PARA RETORNAR CORRESPONDÊNCIAS DO MORADOR LOGADO
+# ROTA PARA RETORNAR CORRESPONDÊNCIAS DO MORADOR LOGADO COM DETALHES DE RETIRADA
 @app.route('/api/morador/minhas-encomendas', methods=['GET'])
 def buscar_minhas_encomendas():
     morador_id = session.get('morador_id')
@@ -586,7 +588,8 @@ def buscar_minhas_encomendas():
     conexao = conectar_banco()
     cursor = conexao.cursor()
     cursor.execute('''
-        SELECT e.* 
+        SELECT e.id, e.protocolo_anual, e.tipo_encomenda, e.empresa_entrega, 
+               e.data_recebimento, e.status, e.retirado_por, e.data_retirada, e.foto_url
         FROM encomendas e
         WHERE e.morador_id = ?
         ORDER BY e.id DESC
