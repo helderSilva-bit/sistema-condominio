@@ -562,7 +562,8 @@ def buscar_encomendas_portaria():
     sql = '''
         SELECT e.id, e.protocolo_anual, e.bloco, e.apartamento, e.tipo_encomenda, 
                e.empresa_entrega, e.porteiro_nome, e.data_recebimento, e.status, 
-               e.retirado_por, e.data_retirada, e.foto_url, m.nome as nome_morador 
+               e.retirado_por, e.data_retirada, e.foto_url, 
+               m.nome as nome_morador, m.celular as celular_morador
         FROM encomendas e
         LEFT JOIN moradores m ON e.morador_id = m.id
         WHERE 1=1

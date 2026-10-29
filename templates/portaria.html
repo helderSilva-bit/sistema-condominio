@@ -16,6 +16,7 @@
         .status-pendente { color: #d9534f; font-weight: bold; }
         .status-entregue { color: #28a745; font-weight: bold; }
         .info-retirada { font-size: 12px; color: #555; }
+        .btn-whats { background: #25d366; color: white; border: none; padding: 6px 10px; border-radius: 4px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 4px; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -39,7 +40,21 @@
             <option value="Outros">Outros</option>
         </select>
 
-        <input type="text" id="empresa_entrega" placeholder="Transportadora (Ex: Amazon, Mercado Livre)" required>
+        <!-- SELEÇÃO DE TRANSPORTADORA EM VEZ DE DIGITAÇÃO -->
+        <select id="empresa_entrega" required>
+            <option value="">Selecione a Transportadora...</option>
+            <option value="Amazon">Amazon</option>
+            <option value="Mercado Livre">Mercado Livre</option>
+            <option value="Shopee">Shopee</option>
+            <option value="Correios">Correios</option>
+            <option value="Loggi">Loggi</option>
+            <option value="Jadlog">Jadlog</option>
+            <option value="DHL">DHL</option>
+            <option value="FedEx">FedEx</option>
+            <option value="Magalu">Magalu</option>
+            <option value="Entregador Local / Outros">Entregador Local / Outros</option>
+        </select>
+
         <input type="file" id="foto" accept="image/*">
 
         <button type="submit" style="background: #28a745; color: white; font-weight: bold; border: none; cursor: pointer; grid-column: 1 / -1;">Registrar Encomenda</button>
@@ -81,7 +96,7 @@ async function carregarMoradores() {
         const moradores = await res.json();
         select.innerHTML = '<option value="">Selecione o Morador...</option>';
         moradores.forEach(m => {
-            select.innerHTML += `<option value="${m.id}">${m.nome}</option>`;
+            select.innerHTML += `<option value="${m.id}" data-tel="${m.celular}">${m.nome}</option>`;
         });
     }
 }
@@ -89,11 +104,19 @@ async function carregarMoradores() {
 async function registrarEncomenda(e) {
     e.preventDefault();
     const formData = new FormData();
-    formData.append('bloco', document.getElementById('bloco').value);
-    formData.append('apartamento', document.getElementById('apartamento').value);
-    formData.append('morador_id', document.getElementById('morador_id').value);
-    formData.append('tipo_encomenda', document.getElementById('tipo_encomenda').value);
-    formData.append('empresa_entrega', document.getElementById('empresa_entrega').value);
+    const bloco = document.getElementById('bloco').value;
+    const apartamento = document.getElementById('apartamento').value;
+    const moradorSelect = document.getElementById('morador_id');
+    const morador_id = moradorSelect.value;
+    const nomeMorador = moradorSelect.options[moradorSelect.selectedIndex].text;
+    const tipo = document.getElementById('tipo_encomenda').value;
+    const empresa = document.getElementById('empresa_entrega').value;
+
+    formData.append('bloco', bloco);
+    formData.append('apartamento', apartamento);
+    formData.append('morador_id', morador_id);
+    formData.append('tipo_encomenda', tipo);
+    formData.append('empresa_entrega', empresa);
     
     const fotoFile = document.getElementById('foto').files[0];
     if (fotoFile) {
@@ -108,6 +131,18 @@ async function registrarEncomenda(e) {
     const json = await res.json();
     if (res.ok) {
         alert("✅ " + json.mensagem);
+
+        // DISPARO E AVISO VIA WHATSAPP
+        if (json.celular_morador) {
+            let telLimpo = json.celular_morador.replace(/\D/g, "");
+            if (!telLimpo.startsWith("55")) telLimpo = "55" + telLimpo;
+
+            const mensagem = `Olá, ${json.nome_morador || nomeMorador}! 📦\n\nUma encomenda (${tipo}) da transportadora *${empresa}* chegou para você na portaria.\n*Protocolo:* #${json.protocolo}\n*Bloco:* ${bloco} - *Apto:* ${apartamento}.\n\nPor favor, retire na portaria quando possível!`;
+            
+            const linkWhatsapp = `https://api.whatsapp.com/send?phone=${telLimpo}&text=${encodeURIComponent(mensagem)}`;
+            window.open(linkWhatsapp, '_blank');
+        }
+
         document.getElementById('form-encomenda').reset();
         buscarEncomendas();
     } else {
@@ -131,8 +166,17 @@ async function buscarEncomendas() {
             let fotoBtn = e.foto_url ? `<br><a href="${e.foto_url}" target="_blank">📷 Ver Foto</a>` : '';
             let statusClasse = e.status === 'Pendente' ? 'status-pendente' : 'status-entregue';
             
+            // Botão do WhatsApp para renotificar morador se pendente
+            let whatsBtn = '';
+            if (e.status === 'Pendente' && e.celular_morador) {
+                let tel = e.celular_morador.replace(/\D/g, "");
+                if (!tel.startsWith("55")) tel = "55" + tel;
+                let msg = `Olá, ${e.nome_morador}! 📦 Lembramos que sua encomenda da *${e.empresa_entrega}* (Protocolo #${e.protocolo_anual}) está aguardando retirada na portaria.`;
+                whatsBtn = `<br><a href="https://api.whatsapp.com/send?phone=${tel}&text=${encodeURIComponent(msg)}" target="_blank" class="btn-whats">💬 Notificar Whats</a>`;
+            }
+
             let acaoBtn = e.status === 'Pendente' 
-                ? `<button class="btn-entregar" onclick="darBaixa(${e.id})">Entregar</button>${fotoBtn}`
+                ? `<button class="btn-entregar" onclick="darBaixa(${e.id})">Entregar</button>${whatsBtn}${fotoBtn}`
                 : `<span style="color:#28a745; font-weight:bold;">Concluído</span>${fotoBtn}`;
 
             let infoRetirada = e.status === 'Entregue' 
