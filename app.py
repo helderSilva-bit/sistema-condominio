@@ -358,3 +358,9 @@ def dar_baixa_encomenda(id_encomenda):
 if __name__ == '__main__':
     init_db.criar_banco()
     app.run(debug=True, host='0.0.0.0', port=5000)
+    # ROTA PARA RECONSTRUIR O BANCO COM A COLUNA MATRICULA
+@app.route('/reconstruir-banco-agora-99')
+def reconstruir_banco_agora():
+    import init_db
+    init_db.criar_banco()
+    return "<h1>✅ Banco de dados reconstruído do zero com a coluna 'matricula'!</h1>"
