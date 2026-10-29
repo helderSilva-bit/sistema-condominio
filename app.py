@@ -227,19 +227,29 @@ def login_morador():
 
     return jsonify({"sucesso": True, "morador": morador_dict}), 200
 
-# GESTÃO DE CONDOMÍNIOS (CLIENTES)
+# GESTÃO DE CONDOMÍNIOS (GET LIBERADO E CRIAÇÃO AUTOMÁTICA DE PADRÃO SE VAZIO)
 @app.route('/api/admin/condominios', methods=['GET', 'POST'])
 def gerenciar_condominios_admin():
-    if not session.get('admin_logado'): 
-        return jsonify({"erro": "Negado"}), 403
     conexao = conectar_banco()
     cursor = conexao.cursor()
 
     if request.method == 'GET':
         cursor.execute('SELECT * FROM condominios ORDER BY id DESC')
+        rows = cursor.fetchall()
+
+        if not rows:
+            exp_inicial = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+            cursor.execute('''
+                INSERT INTO condominios (nome, cnpj_cpf, data_expiracao, status)
+                VALUES (?, ?, ?, 'Ativo')
+            ''', ('Condomínio Padrão', '00000000000000', exp_inicial))
+            conexao.commit()
+            cursor.execute('SELECT * FROM condominios ORDER BY id DESC')
+            rows = cursor.fetchall()
+
         lista = []
         hoje = datetime.now()
-        for row in cursor.fetchall():
+        for row in rows:
             item = dict(row)
             data_exp = datetime.strptime(item['data_expiracao'], "%Y-%m-%d")
             dias_restantes = (data_exp - hoje).days + 1
@@ -250,36 +260,39 @@ def gerenciar_condominios_admin():
         conexao.close()
         return jsonify(lista), 200
 
-    if request.method == 'POST':
-        dados = request.json or {}
-        nome = dados.get('nome', '').strip()
-        doc = apenas_numeros(dados.get('cnpj_cpf', ''))
-        dias = int(dados.get('dias', 30))
+    if not session.get('admin_logado'): 
+        conexao.close()
+        return jsonify({"erro": "Acesso negado!"}), 403
 
-        if not nome:
-            conexao.close()
-            return jsonify({"erro": "Informe o nome do condomínio!"}), 400
+    dados = request.json or {}
+    nome = dados.get('nome', '').strip()
+    doc = apenas_numeros(dados.get('cnpj_cpf', ''))
+    dias = int(dados.get('dias', 30))
 
-        if doc and len(doc) == 11 and not validar_cpf(doc):
-            conexao.close()
-            return jsonify({"erro": "CPF inválido!"}), 400
-        elif doc and len(doc) == 14 and not validar_cnpj(doc):
-            conexao.close()
-            return jsonify({"erro": "CNPJ inválido!"}), 400
+    if not nome:
+        conexao.close()
+        return jsonify({"erro": "Informe o nome do condomínio!"}), 400
 
-        nova_expiracao = (datetime.now() + timedelta(days=dias)).strftime("%Y-%m-%d")
+    if doc and len(doc) == 11 and not validar_cpf(doc):
+        conexao.close()
+        return jsonify({"erro": "CPF do cliente/responsável inválido!"}), 400
+    elif doc and len(doc) == 14 and not validar_cnpj(doc):
+        conexao.close()
+        return jsonify({"erro": "CNPJ do condomínio inválido!"}), 400
 
-        try:
-            cursor.execute('''
-                INSERT INTO condominios (nome, cnpj_cpf, data_expiracao, status)
-                VALUES (?, ?, ?, 'Ativo')
-            ''', (nome, doc if doc else None, nova_expiracao))
-            conexao.commit()
-            return jsonify({"mensagem": f"Condomínio '{nome}' cadastrado com sucesso!"}), 201
-        except sqlite3.IntegrityError:
-            return jsonify({"erro": "CNPJ/CPF já está cadastrado!"}), 400
-        finally:
-            conexao.close()
+    nova_expiracao = (datetime.now() + timedelta(days=dias)).strftime("%Y-%m-%d")
+
+    try:
+        cursor.execute('''
+            INSERT INTO condominios (nome, cnpj_cpf, data_expiracao, status)
+            VALUES (?, ?, ?, 'Ativo')
+        ''', (nome, doc if doc else None, nova_expiracao))
+        conexao.commit()
+        return jsonify({"mensagem": f"Condomínio '{nome}' cadastrado com sucesso!"}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"erro": "CNPJ/CPF já está cadastrado!"}), 400
+    finally:
+        conexao.close()
 
 @app.route('/api/admin/condominios/<int:id>/renovar', methods=['PUT'])
 def renovar_prazo_cliente(id):

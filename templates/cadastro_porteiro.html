@@ -17,8 +17,9 @@
     <h2>🛡️ Cadastro de Porteiro</h2>
     
     <form autocomplete="off" onsubmit="cadastrar(event)">
+        <label style="display:block; text-align:left; font-weight:bold; margin-top:10px;">Selecione o Condomínio:</label>
         <select id="condominio_id" required>
-            <option value="">Selecione o Condomínio...</option>
+            <option value="">Carregando condomínios...</option>
         </select>
         <input type="text" id="nome" placeholder="Nome Completo do Porteiro" required>
         <input type="text" id="matricula" placeholder="Matrícula Funcional (Ex: 0001)" required>
@@ -29,19 +30,22 @@
 
 <script>
 async function carregarCondominios() {
-    const res = await fetch('/api/admin/condominios');
-    const list = await res.json();
-    const select = document.getElementById('condominio_id');
-    select.innerHTML = '';
-    
-    if (!Array.isArray(list) || list.length === 0) {
-        select.innerHTML = '<option value="">Nenhum condomínio cadastrado</option>';
-        return;
+    try {
+        const res = await fetch('/api/admin/condominios');
+        const list = await res.json();
+        const select = document.getElementById('condominio_id');
+        select.innerHTML = '';
+        
+        if (Array.isArray(list) && list.length > 0) {
+            list.forEach(c => {
+                select.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
+            });
+        } else {
+            select.innerHTML = '<option value="1">Condomínio Padrão</option>';
+        }
+    } catch(e) {
+        document.getElementById('condominio_id').innerHTML = '<option value="1">Condomínio Padrão</option>';
     }
-    
-    list.forEach(c => {
-        select.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
-    });
 }
 
 async function cadastrar(e) {
