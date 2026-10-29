@@ -5,7 +5,7 @@ def criar_banco():
     conexao = sqlite3.connect('condominio.db')
     cursor = conexao.cursor()
 
-    # Elimina tabelas antigas para recriar com a estrutura de clientes
+    # Elimina tabelas antigas para recriar com a nova estrutura de clientes
     cursor.execute('DROP TABLE IF EXISTS encomendas')
     cursor.execute('DROP TABLE IF EXISTS moradores')
     cursor.execute('DROP TABLE IF EXISTS porteiros')
@@ -73,7 +73,7 @@ def criar_banco():
         )
     ''')
 
-    # Insere o primeiro cliente padrão com 30 dias de teste
+    # Insere um condomínio inicial padrão com 30 dias de teste
     exp_inicial = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
     cursor.execute('INSERT INTO condominios (nome, cnpj_cpf, data_expiracao, status) VALUES (?, ?, ?, ?)',
                    ('Condomínio Padrão', '00000000000000', exp_inicial, 'Ativo'))

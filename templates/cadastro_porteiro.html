@@ -34,7 +34,7 @@ async function carregarCondominios() {
     const select = document.getElementById('condominio_id');
     select.innerHTML = '';
     
-    if (list.length === 0) {
+    if (!Array.isArray(list) || list.length === 0) {
         select.innerHTML = '<option value="">Nenhum condomínio cadastrado</option>';
         return;
     }

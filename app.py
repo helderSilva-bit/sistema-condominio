@@ -56,7 +56,7 @@ def validar_cnpj(cnpj):
     numeros = cnpj[:tamanho]
     digitos = cnpj[tamanho:]
     
-    def calc_digito(pos, tam):
+    def calc_digito(pos):
         soma = 0
         p = pos
         for num in numeros:
@@ -67,11 +67,11 @@ def validar_cnpj(cnpj):
         d = 11 - (soma % 11)
         return 0 if d > 9 else d
 
-    d1 = calc_digito(5, 12)
+    d1 = calc_digito(5)
     if int(digitos[0]) != d1:
         return False
     numeros += str(d1)
-    d2 = calc_digito(6, 13)
+    d2 = calc_digito(6)
     return int(digitos[1]) == d2
 
 def gerar_protocolo_anual(cursor):
@@ -106,7 +106,7 @@ def aplicar_headers_seguranca(response):
 def imagem_upload(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# ROTAS DAS PÁGINAS
+# PÁGINAS DO SISTEMA
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -260,12 +260,12 @@ def gerenciar_condominios_admin():
             conexao.close()
             return jsonify({"erro": "Informe o nome do condomínio!"}), 400
 
-        if len(doc) == 11 and not validar_cpf(doc):
+        if doc and len(doc) == 11 and not validar_cpf(doc):
             conexao.close()
-            return jsonify({"erro": "CPF do responsável/cliente é inválido!"}), 400
-        elif len(doc) == 14 and not validar_cnpj(doc):
+            return jsonify({"erro": "CPF inválido!"}), 400
+        elif doc and len(doc) == 14 and not validar_cnpj(doc):
             conexao.close()
-            return jsonify({"erro": "CNPJ do condomínio é inválido!"}), 400
+            return jsonify({"erro": "CNPJ inválido!"}), 400
 
         nova_expiracao = (datetime.now() + timedelta(days=dias)).strftime("%Y-%m-%d")
 
@@ -273,11 +273,11 @@ def gerenciar_condominios_admin():
             cursor.execute('''
                 INSERT INTO condominios (nome, cnpj_cpf, data_expiracao, status)
                 VALUES (?, ?, ?, 'Ativo')
-            ''', (nome, doc, nova_expiracao))
+            ''', (nome, doc if doc else None, nova_expiracao))
             conexao.commit()
             return jsonify({"mensagem": f"Condomínio '{nome}' cadastrado com sucesso!"}), 201
         except sqlite3.IntegrityError:
-            return jsonify({"erro": "CNPJ/CPF já está cadastrado em outro condomínio!"}), 400
+            return jsonify({"erro": "CNPJ/CPF já está cadastrado!"}), 400
         finally:
             conexao.close()
 
@@ -306,7 +306,7 @@ def renovar_prazo_cliente(id):
 
     return jsonify({"mensagem": f"Prazo estendido até {datetime.strptime(nova_expiracao, '%Y-%m-%d').strftime('%d/%m/%Y')}!"}), 200
 
-# CADASTRO DE PORTEIRO (CORRIGIDO)
+# CADASTRO DE PORTEIRO
 @app.route('/api/porteiro/cadastrar', methods=['POST'])
 def cadastrar_porteiro():
     if not session.get('admin_logado'): 
@@ -343,7 +343,7 @@ def cadastrar_porteiro():
     finally:
         conexao.close()
 
-# CADASTRO DE MORADOR COM VALIDAÇÃO DE CPF E LIMITE DE 4 POR APTO
+# CADASTRO DE MORADOR
 @app.route('/api/moradores/cadastrar', methods=['POST'])
 def cadastrar_morador():
     dados = request.json or {}
@@ -526,10 +526,11 @@ def dar_baixa_encomenda(id_encomenda):
     conexao.close()
     return jsonify({"mensagem": "Entrega confirmada!"}), 200
 
+# ROTA DE MUTAÇÃO PARA RECONSTRUIR TABELAS
 @app.route('/reconstruir-banco-agora-99')
 def reconstruir_banco_agora():
     init_db.criar_banco()
-    return "<h1>✅ Base de dados limpa e atualizada com validação de CPF e CNPJ!</h1>"
+    return "<h1>✅ Base de dados limpa e recriada com sucesso!</h1>"
 
 if __name__ == '__main__':
     init_db.criar_banco()

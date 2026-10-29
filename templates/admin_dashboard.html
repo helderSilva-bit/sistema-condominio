@@ -73,8 +73,8 @@
 </div>
 
 <script>
-// Máscara auxiliar de CPF/CNPJ
 function mascararDoc(v) {
+    if (!v) return 'N/I';
     v = v.replace(/\D/g, "");
     if (v.length <= 11) {
         return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
@@ -93,7 +93,7 @@ async function carregarTudo() {
             tb.innerHTML = Array.isArray(clientes) && clientes.length > 0 ? clientes.map(c => `
                 <tr>
                     <td>${c.id}</td>
-                    <td><b>${c.nome}</b><br><small>CPF/CNPJ: ${c.cnpj_cpf ? mascararDoc(c.cnpj_cpf) : 'N/I'}</small></td>
+                    <td><b>${c.nome}</b><br><small>CPF/CNPJ: ${mascararDoc(c.cnpj_cpf)}</small></td>
                     <td>${c.data_expiracao_br}</td>
                     <td><b>${c.dias_restantes} dias</b></td>
                     <td>${c.ativo ? '<span style="color:green;font-weight:bold;">✅ Ativo</span>' : '<span style="color:red;font-weight:bold;">❌ Expirado</span>'}</td>
@@ -166,7 +166,7 @@ async function carregarTudo() {
 async function cadastrarNovoCliente() {
     const nome = prompt("Nome do Condomínio / Cliente:");
     if (!nome) return;
-    const cnpj_cpf = prompt("CNPJ ou CPF do Cliente (digite apenas números):");
+    const cnpj_cpf = prompt("CNPJ ou CPF do Cliente (opcional, apenas números):");
     const dias = prompt("Dias iniciais de acesso (ex: 30, 90, 365):", "30");
 
     if (nome && dias) {
